@@ -1738,7 +1738,9 @@ int API_EXPORTED libusb_get_configuration(libusb_device_handle *dev_handle,
  * \returns another LIBUSB_ERROR code on other failure
  * \see libusb_set_auto_detach_kernel_driver()
  */
-int API_EXPORTED libusb_set_configuration(libusb_device_handle *dev_handle,
+int API_EXPORTED true_libusb_set_configuration(libusb_device_handle *dev_handle,
+	int configuration);
+int API_EXPORTED true_libusb_set_configuration(libusb_device_handle *dev_handle,
 	int configuration)
 {
 	usbi_dbg(HANDLE_CTX(dev_handle), "configuration %d", configuration);

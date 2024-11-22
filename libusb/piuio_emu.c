@@ -552,7 +552,7 @@ int API_EXPORTED libusb_control_transfer(libusb_device_handle *dev_handle,
 	uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex,
 	unsigned char *data, uint16_t wLength, unsigned int timeout)
 {
-    printf("piuio_emu: libusb_control_transfer %d\n", __LINE__);
+    //printf("piuio_emu: libusb_control_transfer %d\n", __LINE__);
 
     libusb_device *dev;
     dev = dev_handle->dev;
@@ -807,6 +807,13 @@ int API_EXPORTED libusb_detach_kernel_driver(libusb_device_handle *dev_handle,
 
     if(dummy_response(dev_handle) == 0) return 0;
     return true_libusb_detach_kernel_driver(dev_handle, interface_number);
+}
+
+int API_EXPORTED true_libusb_set_configuration(libusb_device_handle *dev_handle, int configuration);
+int API_EXPORTED libusb_set_configuration(libusb_device_handle *dev_handle, int configuration) {
+
+    if(dummy_response(dev_handle) == 0) return 0;
+    return true_libusb_set_configuration(dev_handle, configuration);
 }
 
 int API_EXPORTED true_libusb_claim_interface(libusb_device_handle *dev_handle,
