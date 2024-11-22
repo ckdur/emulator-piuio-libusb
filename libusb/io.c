@@ -1483,7 +1483,8 @@ static int remove_from_flying_list(struct usbi_transfer *itransfer)
  * the operating system and/or hardware can support (see \ref asynclimits)
  * \returns another LIBUSB_ERROR code on other failure
  */
-int API_EXPORTED libusb_submit_transfer(struct libusb_transfer *transfer)
+int API_EXPORTED true_libusb_submit_transfer(struct libusb_transfer *transfer);
+int API_EXPORTED true_libusb_submit_transfer(struct libusb_transfer *transfer)
 {
 	struct usbi_transfer *itransfer =
 		LIBUSB_TRANSFER_TO_USBI_TRANSFER(transfer);
@@ -1603,7 +1604,8 @@ int API_EXPORTED libusb_submit_transfer(struct libusb_transfer *transfer)
  * already complete, or already cancelled.
  * \returns a LIBUSB_ERROR code on failure
  */
-int API_EXPORTED libusb_cancel_transfer(struct libusb_transfer *transfer)
+int API_EXPORTED true_libusb_cancel_transfer(struct libusb_transfer *transfer);
+int API_EXPORTED true_libusb_cancel_transfer(struct libusb_transfer *transfer)
 {
 	struct usbi_transfer *itransfer =
 		LIBUSB_TRANSFER_TO_USBI_TRANSFER(transfer);
@@ -2438,7 +2440,8 @@ int API_EXPORTED libusb_handle_events_timeout(libusb_context *ctx,
  * \param ctx the context to operate on, or NULL for the default context
  * \returns 0 on success, or a LIBUSB_ERROR code on failure
  */
-int API_EXPORTED libusb_handle_events(libusb_context *ctx)
+int API_EXPORTED true_libusb_handle_events(libusb_context *ctx);
+int API_EXPORTED true_libusb_handle_events(libusb_context *ctx)
 {
 	struct timeval tv;
 	tv.tv_sec = 60;

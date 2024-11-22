@@ -819,7 +819,9 @@ struct libusb_device *usbi_get_device_by_session_id(struct libusb_context *ctx,
  * \returns the number of devices in the outputted list, or any
  * \ref libusb_error according to errors encountered by the backend.
  */
-ssize_t API_EXPORTED libusb_get_device_list(libusb_context *ctx,
+ssize_t true_libusb_get_device_list(libusb_context *ctx,
+	libusb_device ***list);
+ssize_t true_libusb_get_device_list(libusb_context *ctx,
 	libusb_device ***list)
 {
 	struct discovered_devs *discdevs = discovered_devs_alloc();
@@ -1402,7 +1404,9 @@ int API_EXPORTED libusb_wrap_sys_device(libusb_context *ctx, intptr_t sys_dev,
  * \returns \ref LIBUSB_ERROR_NO_DEVICE if the device has been disconnected
  * \returns another LIBUSB_ERROR code on other failure
  */
-int API_EXPORTED libusb_open(libusb_device *dev,
+int API_EXPORTED true_libusb_open(libusb_device *dev,
+	libusb_device_handle **dev_handle);
+int API_EXPORTED true_libusb_open(libusb_device *dev,
 	libusb_device_handle **dev_handle)
 {
 	struct libusb_context *ctx = DEVICE_CTX(dev);
@@ -1559,7 +1563,8 @@ static void do_close(struct libusb_context *ctx,
  *
  * \param dev_handle the device handle to close
  */
-void API_EXPORTED libusb_close(libusb_device_handle *dev_handle)
+void API_EXPORTED true_libusb_close(libusb_device_handle *dev_handle);
+void API_EXPORTED true_libusb_close(libusb_device_handle *dev_handle)
 {
 	struct libusb_context *ctx;
 	unsigned int event_flags;
@@ -1770,7 +1775,9 @@ int API_EXPORTED libusb_set_configuration(libusb_device_handle *dev_handle,
  * \returns a LIBUSB_ERROR code on other failure
  * \see libusb_set_auto_detach_kernel_driver()
  */
-int API_EXPORTED libusb_claim_interface(libusb_device_handle *dev_handle,
+int API_EXPORTED true_libusb_claim_interface(libusb_device_handle *dev_handle,
+	int interface_number);
+int API_EXPORTED true_libusb_claim_interface(libusb_device_handle *dev_handle,
 	int interface_number)
 {
 	int r = 0;
@@ -1814,7 +1821,9 @@ out:
  * \returns another LIBUSB_ERROR code on other failure
  * \see libusb_set_auto_detach_kernel_driver()
  */
-int API_EXPORTED libusb_release_interface(libusb_device_handle *dev_handle,
+int API_EXPORTED true_libusb_release_interface(libusb_device_handle *dev_handle,
+	int interface_number);
+int API_EXPORTED true_libusb_release_interface(libusb_device_handle *dev_handle,
 	int interface_number)
 {
 	int r;
@@ -2081,7 +2090,9 @@ int API_EXPORTED libusb_dev_mem_free(libusb_device_handle *dev_handle,
  * \returns another LIBUSB_ERROR code on other failure
  * \see libusb_detach_kernel_driver()
  */
-int API_EXPORTED libusb_kernel_driver_active(libusb_device_handle *dev_handle,
+int API_EXPORTED true_libusb_kernel_driver_active(libusb_device_handle *dev_handle,
+	int interface_number);
+int API_EXPORTED true_libusb_kernel_driver_active(libusb_device_handle *dev_handle,
 	int interface_number)
 {
 	usbi_dbg(HANDLE_CTX(dev_handle), "interface %d", interface_number);
@@ -2119,7 +2130,9 @@ int API_EXPORTED libusb_kernel_driver_active(libusb_device_handle *dev_handle,
  * \returns another LIBUSB_ERROR code on other failure
  * \see libusb_kernel_driver_active()
  */
-int API_EXPORTED libusb_detach_kernel_driver(libusb_device_handle *dev_handle,
+int API_EXPORTED true_libusb_detach_kernel_driver(libusb_device_handle *dev_handle,
+	int interface_number);
+int API_EXPORTED true_libusb_detach_kernel_driver(libusb_device_handle *dev_handle,
 	int interface_number)
 {
 	usbi_dbg(HANDLE_CTX(dev_handle), "interface %d", interface_number);
@@ -2426,7 +2439,8 @@ int API_EXPORTED libusb_init(libusb_context **ctx)
  * \returns 0 on success, or a LIBUSB_ERROR code on failure
  * \see libusb_contexts
  */
-int API_EXPORTED libusb_init_context(libusb_context **ctx, const struct libusb_init_option options[], int num_options)
+int true_libusb_init_context(libusb_context **ctx, const struct libusb_init_option options[], int num_options);
+int true_libusb_init_context(libusb_context **ctx, const struct libusb_init_option options[], int num_options)
 {
 	size_t priv_size = usbi_backend.context_priv_size;
 	struct libusb_context *_ctx;
