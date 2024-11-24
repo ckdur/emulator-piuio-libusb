@@ -515,9 +515,7 @@ static int get_config_descriptor(struct libusb_device *dev, uint8_t config_idx,
  * \param desc output location for the descriptor data
  * \returns 0 on success or a LIBUSB_ERROR code on failure
  */
-int API_EXPORTED true_libusb_get_device_descriptor(libusb_device *dev,
-	struct libusb_device_descriptor *desc);
-int API_EXPORTED true_libusb_get_device_descriptor(libusb_device *dev,
+int true_libusb_get_device_descriptor(libusb_device *dev,
 	struct libusb_device_descriptor *desc)
 {
 	usbi_dbg(DEVICE_CTX(dev), " ");
@@ -541,9 +539,7 @@ int API_EXPORTED true_libusb_get_device_descriptor(libusb_device *dev,
  * \returns another LIBUSB_ERROR code on error
  * \see libusb_get_config_descriptor
  */
-int API_EXPORTED true_libusb_get_active_config_descriptor(libusb_device *dev,
-	struct libusb_config_descriptor **config);
-int API_EXPORTED true_libusb_get_active_config_descriptor(libusb_device *dev,
+int true_libusb_get_active_config_descriptor(libusb_device *dev,
 	struct libusb_config_descriptor **config)
 {
 	union usbi_config_desc_buf _config;
@@ -584,9 +580,7 @@ int API_EXPORTED true_libusb_get_active_config_descriptor(libusb_device *dev,
  * \see libusb_get_active_config_descriptor()
  * \see libusb_get_config_descriptor_by_value()
  */
-int API_EXPORTED true_libusb_get_config_descriptor(libusb_device *dev,
-	uint8_t config_index, struct libusb_config_descriptor **config);
-int API_EXPORTED true_libusb_get_config_descriptor(libusb_device *dev,
+int true_libusb_get_config_descriptor(libusb_device *dev,
 	uint8_t config_index, struct libusb_config_descriptor **config)
 {
 	union usbi_config_desc_buf _config;
@@ -672,9 +666,7 @@ int API_EXPORTED libusb_get_config_descriptor_by_value(libusb_device *dev,
  *
  * \param config the configuration descriptor to free
  */
-void API_EXPORTED true_libusb_free_config_descriptor(
-	struct libusb_config_descriptor *config);
-void API_EXPORTED true_libusb_free_config_descriptor(
+void true_libusb_free_config_descriptor(
 	struct libusb_config_descriptor *config)
 {
 	if (!config)

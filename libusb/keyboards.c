@@ -3,12 +3,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <glob.h>
 #include <linux/input.h>
 #include <stdbool.h>
 
 /* Vector of keyboards to open*/
 FILE **kbds;
-int i = 0, k, l;
 char key_map[KEY_MAX/8+1];
 char key_map2[KEY_MAX/8+1];
 int nKeyboards = 0;
@@ -35,7 +35,7 @@ void init_keyboards(void) {
   FILE *file = fopen("/proc/bus/input/devices", "r");
   if (!file) {
     perror("Error opening /proc/bus/input/devices");
-    return;
+    goto other_init_keyboards;
   }
 
   char line[MAX_LINE_LENGTH];
@@ -102,15 +102,31 @@ void init_keyboards(void) {
   }
 
   fclose(file);
+other_init_keyboards:
+  if(nKeyboards == 0) {
+    glob_t keyboards;
+    glob("/dev/input/by-path/*event-kbd", 0, 0, &keyboards);
+
+    if(keyboards.gl_pathc > 0) {
+        nKeyboards = keyboards.gl_pathc;
+        printf("Found %d keyboards\n", nKeyboards);
+        kbds = (FILE**)malloc(nKeyboards*sizeof(FILE*));
+        char **p;
+        int n;
+        for(p = keyboards.gl_pathv, n = 0; n < (int)(keyboards.gl_pathc); p++, n++) {
+            kbds[n] = fopen(*p, "r");
+            printf("Opening file: %s\n", *p);
+        }
+    }
+    globfree(&keyboards);
+  }
 }
 
 #define keyp(keymap, key) (keymap[key/8] & (1 << (key % 8)))
 void poll_keyboards(void) {
-  bytes_p[0] = 0xFF;
-  bytes_p[1] = 0xFF;
-  bytes_p[2] = 0xFF;
-  bytes_p[3] = 0xFF;
-  for(i = 0; i < nKeyboards; i++) if(kbds[i] != NULL)
+  unsigned char keyb_in_p[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+  unsigned char keyb_in_pb[2] = {0xFF, 0xFF};
+  for(int i = 0; i < nKeyboards; i++) if(kbds[i] != NULL)
   {
     memset(key_map, 0, sizeof(key_map));    //  Initate the array to zero's
     ioctl(fileno(kbds[i]), EVIOCGKEY(sizeof(key_map)), key_map);    //  Fill the keymap with the current keyboard state
@@ -132,7 +148,7 @@ void poll_keyboards(void) {
         byte |= (0x40);
     if(keyp(key_map, KEY_O))
         byte |= (0x80);
-    bytes_p[2] &= ~byte;
+    keyb_in_p[2] &= ~byte;
 
     byte = 0;
     if(keyp(key_map, KEY_Q))
@@ -151,7 +167,7 @@ void poll_keyboards(void) {
         byte |= (0x40);
     if(keyp(key_map, KEY_K))
         byte |= (0x80);
-    bytes_p[0] &= ~byte;
+    keyb_in_p[0] &= ~byte;
 
     byte = 0;
     if(keyp(key_map, KEY_L))
@@ -170,7 +186,7 @@ void poll_keyboards(void) {
         byte |= (0x40);
     if(keyp(key_map, KEY_COMMA))
         byte |= (0x80);
-    bytes_p[3] &= ~byte;
+    keyb_in_p[3] &= ~byte;
 
 	  byte = 0;
     if(keyp(key_map, KEY_F5))
@@ -189,12 +205,12 @@ void poll_keyboards(void) {
         byte |= (0x40);
     if(keyp(key_map, KEY_F12))
         byte |= (0x80);
-    bytes_p[1] &= ~byte;
+    keyb_in_p[1] &= ~byte;
 
     if(keyp(key_map, KEY_SPACE))
     {
-      bytes_p[2] &= 0xE0;
-      bytes_p[0] &= 0xE0;
+      keyb_in_p[2] &= 0xE0;
+      keyb_in_p[0] &= 0xE0;
     }
     
     byte = 0;
@@ -214,7 +230,9 @@ void poll_keyboards(void) {
         byte |= (0x40);
     if(keyp(key_map, KEY_KPENTER))
         byte |= (0x80);
-    bytes_pb[0] = ~byte;
-    bytes_pb[1] = 0xFF;
+    keyb_in_pb[0] &= ~byte;
+    keyb_in_pb[1] &= 0xFF;
   }
+  memcpy(bytes_p, keyb_in_p, 4);
+  memcpy(bytes_pb, keyb_in_pb, 2);
 }

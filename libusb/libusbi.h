@@ -1528,6 +1528,43 @@ extern const struct usbi_os_backend usbi_backend;
 #define for_each_hotplug_cb_safe(ctx, c, n) \
 	for_each_safe_helper(c, n, &(ctx)->hotplug_cbs, struct usbi_hotplug_callback)
 
+// Real function definitions
+int true_libusb_init_context(libusb_context **ctx, const struct libusb_init_option options[], int num_options);
+ssize_t true_libusb_get_device_list(libusb_context *ctx,
+	libusb_device ***list);
+int true_libusb_get_device_descriptor(libusb_device *dev,
+	struct libusb_device_descriptor *desc);
+int true_libusb_get_config_descriptor(libusb_device *dev,
+	uint8_t config_index, struct libusb_config_descriptor **config);
+int true_libusb_get_active_config_descriptor(libusb_device *dev,
+	struct libusb_config_descriptor **config);
+void true_libusb_free_config_descriptor(
+	struct libusb_config_descriptor *config);
+int true_libusb_open(libusb_device *dev,
+	libusb_device_handle **dev_handle);
+void true_libusb_close(libusb_device_handle *dev_handle);
+int true_libusb_control_transfer(libusb_device_handle *dev_handle,
+	uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex,
+	unsigned char *data, uint16_t wLength, unsigned int timeout);
+int true_libusb_interrupt_transfer(libusb_device_handle *dev_handle,
+	unsigned char endpoint, unsigned char *data, int length,
+	int *transferred, unsigned int timeout);
+int true_libusb_submit_transfer(struct libusb_transfer *transfer);
+int true_libusb_cancel_transfer(struct libusb_transfer *transfer);
+int true_libusb_handle_events(libusb_context *ctx);
+int true_libusb_kernel_driver_active(libusb_device_handle *dev_handle,
+	int interface_number);
+int true_libusb_detach_kernel_driver(libusb_device_handle *dev_handle,
+	int interface_number);
+int true_libusb_set_configuration(libusb_device_handle *dev_handle, int configuration);
+int true_libusb_claim_interface(libusb_device_handle *dev_handle,
+	int interface_number);
+int true_libusb_release_interface(libusb_device_handle *dev_handle,
+	int interface_number);
+void true_libusb_exit(libusb_context *ctx);
+void true_libusb_free_device_list(libusb_device **list,
+	int unref_devices);
+
 #ifdef __cplusplus
 }
 #endif

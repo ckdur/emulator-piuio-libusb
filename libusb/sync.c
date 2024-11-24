@@ -58,7 +58,7 @@ static void sync_transfer_wait_for_completion(struct libusb_transfer *transfer)
 				continue;
 			usbi_err(ctx, "libusb_handle_events failed: %s, cancelling transfer and retrying",
 				 libusb_error_name(r));
-			libusb_cancel_transfer(transfer);
+			true_libusb_cancel_transfer(transfer);
 			continue;
 		}
 		if (NULL == transfer->dev_handle) {
@@ -100,10 +100,7 @@ static void sync_transfer_wait_for_completion(struct libusb_transfer *transfer)
  * the operating system and/or hardware can support (see \ref asynclimits)
  * \returns another LIBUSB_ERROR code on other failures
  */
-int API_EXPORTED true_libusb_control_transfer(libusb_device_handle *dev_handle,
-	uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex,
-	unsigned char *data, uint16_t wLength, unsigned int timeout);
-int API_EXPORTED true_libusb_control_transfer(libusb_device_handle *dev_handle,
+int true_libusb_control_transfer(libusb_device_handle *dev_handle,
 	uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex,
 	unsigned char *data, uint16_t wLength, unsigned int timeout)
 {
@@ -133,7 +130,7 @@ int API_EXPORTED true_libusb_control_transfer(libusb_device_handle *dev_handle,
 	libusb_fill_control_transfer(transfer, dev_handle, buffer,
 		sync_transfer_cb, &completed, timeout);
 	transfer->flags = LIBUSB_TRANSFER_FREE_BUFFER;
-	r = libusb_submit_transfer(transfer);
+	r = true_libusb_submit_transfer(transfer);
 	if (r < 0) {
 		libusb_free_transfer(transfer);
 		return r;
@@ -194,7 +191,7 @@ static int do_sync_bulk_transfer(struct libusb_device_handle *dev_handle,
 		sync_transfer_cb, &completed, timeout);
 	transfer->type = type;
 
-	r = libusb_submit_transfer(transfer);
+	r = true_libusb_submit_transfer(transfer);
 	if (r < 0) {
 		libusb_free_transfer(transfer);
 		return r;
@@ -336,10 +333,7 @@ int API_EXPORTED libusb_bulk_transfer(libusb_device_handle *dev_handle,
  * the operating system and/or hardware can support (see \ref asynclimits)
  * \returns another LIBUSB_ERROR code on other error
  */
-int API_EXPORTED true_libusb_interrupt_transfer(libusb_device_handle *dev_handle,
-	unsigned char endpoint, unsigned char *data, int length,
-	int *transferred, unsigned int timeout);
-int API_EXPORTED true_libusb_interrupt_transfer(libusb_device_handle *dev_handle,
+int true_libusb_interrupt_transfer(libusb_device_handle *dev_handle,
 	unsigned char endpoint, unsigned char *data, int length,
 	int *transferred, unsigned int timeout)
 {
