@@ -388,15 +388,16 @@ static void poll_piuio_emu(void) {
     // Detect if service and test has been held 5 seconds
     // Test is bit 9, service is bit 14
     //    bit 9                    bit 14
-    if(!(bytes_f[1] & 0x02) && !(bytes_f[1] & 0x40)) {
+    if(!(bytes_f[1] & 0x02)/* && !(bytes_f[1] & 0x40)*/) {
         if(!condition_met) {
             // Start timing if condition is met for the first time
             start_time = time(NULL);
             condition_met = true;
+            printf("TEST hold ...\n");
         }
         else if (time(NULL) - start_time >= 5) {
             // If condition is continuously met for 5 seconds, exit the loop
-            printf("TEST and SERVICE held 5 seconds. Exiting ...\n");
+            printf("TEST held 5 seconds. Exiting ...\n");
             exit(0);
             abort();
             *((int*)NULL) = 0; // crash it
