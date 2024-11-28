@@ -9,6 +9,7 @@ extern unsigned long delay;
 void KeyHandler_Twitch_Init(void);
 void KeyHandler_Twitch_Poll(void);
 void KeyHandler_Twitch_UpdateLights(char* bytes);
+void KeyHandler_Twitch_Exit(void);
 extern char bytes_g[4]; // Purely for graphic purposes
 
 struct command_spec {
