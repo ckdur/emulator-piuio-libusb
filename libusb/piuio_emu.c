@@ -14,6 +14,7 @@
 #include "libusbi.h"
 #include "keyboards.h"
 #include "piuio.h"
+#include "twitch.h"
 
 #define min(a, b) ((a)<(b)?(a):(b))
 int16_t string0[] = PIULXIO_CTRL_300;
@@ -342,6 +343,7 @@ static void init_piuio_emu(void) {
     usbi_mutex_init(&piuioemu_mutex);
     usbi_mutex_init(&piuioemu_poll_mutex);
     init_keyboards();
+    KeyHandler_Twitch_Init();
     piuioemu_queue = createQueue();
     const char *val;
     int r;
@@ -384,6 +386,7 @@ bool condition_met = false;
 static void poll_piuio_emu(void) {
     poll_keyboards();
     poll_piuio();
+    KeyHandler_Twitch_Poll();
 
     // Detect if service and test has been held 5 seconds
     // Test is bit 9, service is bit 14
