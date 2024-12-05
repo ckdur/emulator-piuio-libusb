@@ -8,16 +8,25 @@ extern unsigned long tlastchange;
 extern unsigned long delay;
 void KeyHandler_Twitch_Init(void);
 void KeyHandler_Twitch_Poll(void);
-void KeyHandler_Twitch_UpdateLights(char* bytes);
+void KeyHandler_Twitch_UpdateLights(unsigned char* bytes);
 void KeyHandler_Twitch_Exit(void);
 extern char bytes_g[4]; // Purely for graphic purposes
 
 struct command_spec {
   char p1;
   char p2;
-  double beat;
+  unsigned long time;
   char isHold;
-  double beatEnd;
+  unsigned long timeEnd;
+};
+
+enum STATE_REQUEST_ENUM {
+  STATE_REQUEST_NONE,
+  STATE_REQUEST_LIGHTS,
+  STATE_REQUEST_STEP,
+  STATE_REQUEST_LIGHTS_RAW,
+  STATE_REQUEST_STEP_RAW,
+  STATE_REQUEST_END
 };
 
 extern struct command_spec* comms;

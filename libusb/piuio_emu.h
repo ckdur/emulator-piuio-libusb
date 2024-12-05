@@ -44,5 +44,6 @@
 #define PIUIOBUTTON_ENDPOINT_IN 0x01
 
 extern unsigned char bytes_l[4];
+extern unsigned char bytes_f[16];
 
 #endif // PIUIO_EMU_H

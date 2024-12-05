@@ -317,19 +317,24 @@ unsigned char bytes_j[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // From joysticks
 unsigned char bytes_jb[2] = {0xFF, 0xFF};
 unsigned char bytes_p[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // From keyboard
 unsigned char bytes_pb[2] = {0xFF, 0xFF};
-unsigned char bytes_t[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // From twitch (TODO)
+unsigned char bytes_t[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // From twitch
 unsigned char bytes_tb[2] = {0xFF, 0xFF};
 
 unsigned char bytes_piuio[16] = { // From PIUIO
     0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 1P
     0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 2P
     0xFF, 0xFF, // Coins, service
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
+    0xFF, 0xFF, // Frontal buttons in LX mode
+    0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
 unsigned char bytes_piuiob[2] = {0xFF, 0xFF}; // From PIUIObutton
 
 unsigned char bytes_l[4] = {0x00, 0x00, 0x00, 0x00};
-unsigned char bytes_f[4] = {0xFF, 0xFF, 0xFF, 0xFF};
-unsigned char bytes_f_prev[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+unsigned char bytes_f[16] = { // As LX
+    0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 1P
+    0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 2P
+    0xFF, 0xFF, // Coins, service
+    0xFF, 0xFF, // Frontal buttons in LX mode
+    0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
 unsigned char bytes_fb[2] = {0xFF, 0xFF};
 
 usbi_mutex_t piuioemu_mutex;
@@ -391,7 +396,7 @@ static void poll_piuio_emu(void) {
     // Detect if service and test has been held 5 seconds
     // Test is bit 9, service is bit 14
     //    bit 9                    bit 14
-    if(!(bytes_f[1] & 0x02)/* && !(bytes_f[1] & 0x40)*/) {
+    if(!(bytes_f[8] & 0x02)/* && !(bytes_f[1] & 0x40)*/) {
         if(!condition_met) {
             // Start timing if condition is met for the first time
             start_time = time(NULL);
@@ -410,7 +415,6 @@ static void poll_piuio_emu(void) {
     else {
         condition_met = false;
     }
-    memcpy(bytes_f_prev, bytes_f, 4);
 }
 
 int g_init = 0;
@@ -688,19 +692,16 @@ static int piulxio_helper_process_data_in(uint8_t* bytes, int size) {
 
     // p1 stuff
     for(int i = 0; i < 4; i++) {
-        bytes[i] = bytes_piuio[i] & bytes_j[0] & bytes_p[0] & bytes_t[0];
+        bytes_f[i] = bytes[i] = bytes_piuio[i] & bytes_j[0] & bytes_p[0] & bytes_t[0];
     }
-    //printf("%02x %02x %02x %02x %02x\n", bytes[0], bytes_piuio[0], bytes_j[0], bytes_p[0], bytes_t[0]);
-    bytes_f[0] = bytes[0] & bytes[1] & bytes[2] & bytes[3];
     // p2 stuff
     for(int i = 4; i < 8; i++) {
-        bytes[i] = bytes_piuio[i] & bytes_j[2] & bytes_p[2] & bytes_t[2];
+        bytes_f[i] = bytes[i] = bytes_piuio[i] & bytes_j[2] & bytes_p[2] & bytes_t[2];
     }
-    bytes_f[2] = bytes[4] & bytes[5] & bytes[6] & bytes[7];
     if(size <= 8) return ret;
     // coin stuff
-    bytes_f[1] = bytes[8] = bytes_piuio[8] & bytes_j[1] & bytes_p[1] & bytes_t[1];
-    bytes_f[3] = bytes[9] = bytes_piuio[9] & bytes_j[3] & bytes_p[3] & bytes_t[3];
+    bytes_f[8] = bytes[8] = bytes_piuio[8] & bytes_j[1] & bytes_p[1] & bytes_t[1];
+    bytes_f[9] = bytes[9] = bytes_piuio[9] & bytes_j[3] & bytes_p[3] & bytes_t[3];
     
     // Frontal buttons
     bytes_fb[0] = bytes_piuiob[0] & bytes_jb[0] & bytes_pb[0] & bytes_tb[0];
@@ -709,15 +710,19 @@ static int piulxio_helper_process_data_in(uint8_t* bytes, int size) {
     bytes[10] = ((bytes_fb[0] & 0x01)? 0xFF:0xFC) & // UL/UR both on red button
                 ((bytes_fb[0] & 0x02)? 0xFF:0xF7) & // DL on left button
                 ((bytes_fb[0] & 0x04)? 0xFF:0xEF) & // DR on right button
-                ((bytes_fb[0] & 0x08)? 0xFF:0xFB); // Center on green button
+                ((bytes_fb[0] & 0x08)? 0xFF:0xFB) & // Center on green button
+                bytes_piuio[10];
     bytes[11] = ((bytes_fb[0] & 0x10)? 0xFF:0xFC) & // UL/UR both on red button
                 ((bytes_fb[0] & 0x20)? 0xFF:0xF7) & // DL on left button
                 ((bytes_fb[0] & 0x40)? 0xFF:0xEF) & // DR on right button
-                ((bytes_fb[0] & 0x80)? 0xFF:0xFB); // Center on green button
+                ((bytes_fb[0] & 0x80)? 0xFF:0xFB) & // Center on green button
+                bytes_piuio[11];
+    bytes_f[10] = bytes[10];
+    bytes_f[11] = bytes[11];
     // Probably unused stuff
     for(int i = 12; i < 16; i++) {
 
-        bytes[i] = bytes_piuio[i] & bytes_f[3]; // Only for testing if actually does something?
+        bytes_f[i] = bytes[i] = bytes_piuio[i]; // Only for testing if actually does something?
     }
     usbi_mutex_unlock(&piuioemu_poll_mutex);
 
@@ -746,10 +751,10 @@ static int piuio_helper_process_data_in(uint8_t* bytes, int size) {
     int s2 = bytes_l[2] & 0x3;
 
     // Fill accordingly
-    bytes_f[0] = bytes[0] = bytes_piuio[s1+0] & bytes_j[0] & bytes_p[0] & bytes_t[0];
-    bytes_f[1] = bytes[1] = bytes_piuio[8] & bytes_j[1] & bytes_p[1] & bytes_t[1];
-    bytes_f[2] = bytes[2] = bytes_piuio[s2+4] &  bytes_j[2] & bytes_p[2] & bytes_t[2];
-    bytes_f[3] = bytes[3] = bytes_piuio[9] & bytes_j[3] & bytes_p[3] & bytes_t[3];
+    bytes_f[s1+0] = bytes[0] = bytes_piuio[s1+0] & bytes_j[0] & bytes_p[0] & bytes_t[0];
+    bytes_f[s2+4] = bytes[2] = bytes_piuio[s2+4] &  bytes_j[2] & bytes_p[2] & bytes_t[2];
+    bytes_f[8] = bytes[1] = bytes_piuio[8] & bytes_j[1] & bytes_p[1] & bytes_t[1];
+    bytes_f[9] = bytes[3] = bytes_piuio[9] & bytes_j[3] & bytes_p[3] & bytes_t[3];
 
     usbi_mutex_unlock(&piuioemu_poll_mutex);
     return ret;

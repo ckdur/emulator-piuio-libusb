@@ -18,7 +18,8 @@
 //char bytes_t[4];
 //char bytes_tb[2];
 char bytes_g[4];
-void HandleBuffer(int deploy_full);
+int HandleBuffer(int deploy_full);
+void HandleRequest(int req);
 unsigned long GetCurrentTime(void);
 
 struct command_spec* comms = NULL;
@@ -131,14 +132,16 @@ static void handle_socket(void){
         return;
     }
     else {
+#ifdef DIE_AFTER_X_SECONDS
       unsigned long t2 = GetCurrentTime();
-      if((t2 - tlastaccept) > 5000000) // 5 seconds
+      if((t2 - tlastaccept) > (DIE_AFTER_X_SECONDS*1000000))
       {
         printf("Timeout\n");
         isListen = 0;
         close(newsockfd);
         return; // Try in the next iteration to do the accept
       }
+#endif
     }
     
     if(buffer[0] == 'Q') {
@@ -148,11 +151,13 @@ static void handle_socket(void){
       return; // Try in the next iteration to do the accept
     }
     
+    int req;
     if(n > 0) {
       // Renew the time of last connection
       tlastaccept = GetCurrentTime();
       while((siz+n) >= MAXBUF) {
-        HandleBuffer(1);
+        req = HandleBuffer(1);
+        HandleRequest(req);
       }
       memcpy(buf + siz, buffer, n);
       siz += n;
@@ -163,7 +168,8 @@ static void handle_socket(void){
       //  break;
       //}
     }
-    HandleBuffer(0);
+    req = HandleBuffer(0);
+    HandleRequest(req);
   }
 }
 
@@ -200,6 +206,18 @@ static double GetBeat2(unsigned long t, double BPM)
   return (double)(t) / 60000000.0 * BPM ;
 }
 
+static unsigned long GetTime(double b)
+{
+  if(b < 0) return 0;
+  return (unsigned long) ((b) * 60000000.0 / fBPM );
+}
+
+static unsigned long GetTime2(double b, double BPM)
+{
+  if(b < 0) return 0;
+  return (unsigned long) ((b) * 60000000.0 / BPM );
+}
+
 double GetCurrentBeat(void)
 {
   unsigned long t = GetCurrentTime();
@@ -212,16 +230,16 @@ int directionAnarchy = 0;
 int numberUsers = 100;
 double constVote = 1.0; // Each person has to vote 1 times
 unsigned long tlastVoted = 0;
+unsigned long delay = 0;
 
-int ul = 0, ur = 0, ce = 0, dl = 0, dr = 0;
-unsigned long delay = 250000; // 5 secs
-double maxBeats = 8.0;
-void HandleBuffer(int deploy_full) {
-  if(siz <= 0) return;
+
+int HandleBuffer(int deploy_full) {
+  if(siz <= 0) return 0;
   //printf("Entering: HandleBuffer\n");
   buf[siz] = 0; // To treat is as string
   char* bufaux = buf;
   char* bufend = buf + siz;
+  int req = STATE_REQUEST_NONE;
   while(siz != 0) {
     char* f = strchr(bufaux, '\n');
     if(f == NULL) {
@@ -262,9 +280,8 @@ void HandleBuffer(int deploy_full) {
       // at 1/4 of the beat
       // So, the beat has to be a multiple of 1/4
       unsigned long t = GetCurrentTime() + delay;
-      double addBeat = 0.25;
-      double addHold = 0.0;
-      double beatAlign = 0.25;
+      unsigned long addTime = 0;
+      unsigned long addTimeHold = 0;
       char notadd = 0;
       
       // Now, analyze the command
@@ -294,6 +311,17 @@ void HandleBuffer(int deploy_full) {
               if(((long)delay + k*1000) <= 0) delay = 0;
               delay = (unsigned long)((long)delay + k*1000);
               if(delay > 30000000) delay = 30000000;
+            }
+            break;
+          }
+
+          if(strcmp(fs, "req")  == 0) {
+            notadd = 1;
+            char* conv = f2+1;
+            int k;
+            int arg = sscanf(conv, "%d", &k);
+            if(arg == 1 && k < STATE_REQUEST_END) {
+              req = k;
             }
             break;
           }
@@ -396,33 +424,70 @@ void HandleBuffer(int deploy_full) {
           if('0' <= fs[0] && fs[0] <= '9' &&
              '0' <= fs[2] && fs[2] <= '9' &&
              fs[1] == '/') {
-             // Get how much do we need to add
-             addBeat += (double)(fs[0] - '0')/(double)(fs[2] - '0');
-             // Also get the align
-             // The 2 is just for forcing 1/4
-             if(fs[2] == '2') beatAlign = 0.25;
-             else beatAlign = 1.0/(double)(fs[2] - '0');
+
+            // Get the current beat
+            double beat = GetBeat(t);
+            // Get how much do we need to add
+            double addBeat = (double)(fs[0] - '0')/(double)(fs[2] - '0');
+            // Also get the align
+            // The 2 is just for forcing 1/4
+            double beatAlign = 0.25;
+            if(fs[2] == '2') beatAlign = 0.25;
+            else beatAlign = 1.0/(double)(fs[2] - '0');
+
+            // Finally, get the time this is supposed to press
+            double nextalign = ceil(beat / beatAlign) * beatAlign;
+            double finalbeat = nextalign + addBeat - beat;
+            
+             addTime = GetTime(finalbeat) + t;
           }
           
           // hxxx.xxx
           else if(fs[0] == 'h') {
-            char* conv = fs+1;
-            double beat = 0.0;
-            int arg = sscanf(conv, "%lg", &beat);
-            if(arg == 1) {
-              if(beat < 8.0) {
-                addHold += beat;
-                spec.isHold = 1;
+            unsigned long holdtime = 0;
+            int arg = 0;
+            if(fs[1] == 'b') {
+              // Time is in beats
+              double beat = 0.0;
+              arg = sscanf(fs+2, "%lg", &beat);
+              if(arg == 1) {
+                holdtime = GetTime2(beat, fBPM);
               }
+            }
+            else {
+              double time_in_seconds = 0.0;
+              arg = sscanf(fs+1, "%lg", &time_in_seconds);
+              if(arg == 1) {
+                holdtime = (unsigned long)(time_in_seconds * 1000000.0);
+              }
+            }
+            if(arg == 1) {
+              addTimeHold += holdtime;
+              spec.isHold = 1;
             }
           }
           
           // xxx.xxx
           else {
-            double beat = 0.0;
-            int arg = sscanf(fs, "%lg", &beat);
+            unsigned long steptime = 0;
+            int arg = 0;
+            if(fs[0] == 'b') {
+              // Time is in beats
+              double beat = 0.0;
+              arg = sscanf(fs+1, "%lg", &beat);
+              if(arg == 1) {
+                steptime = GetTime2(beat, fBPM);
+              }
+            }
+            else {
+              double time_in_seconds = 0.0;
+              arg = sscanf(fs, "%lg", &time_in_seconds);
+              if(arg == 1) {
+                steptime = (unsigned long)(time_in_seconds * 1000000.0);
+              }
+            }
             if(arg == 1) {
-              addBeat += beat;
+              addTime += steptime;
             }
           }
         }
@@ -438,11 +503,11 @@ void HandleBuffer(int deploy_full) {
       
       // Calculate the beats
       // We add 1 because adding the if(fmod(beat, beatAlign) == 0.0) is almost always true
-      spec.beat = (floor(GetBeat(t) / beatAlign) + 1.0) * beatAlign + addBeat; 
-      spec.beatEnd = spec.beat + addHold;
+      spec.time = t + addTime;
+      spec.timeEnd = spec.time + addTimeHold;
       
       // if this is true, we add the command
-      if(addBeat <= maxBeats && strcmp(bufaux, "nothing") != 0 && !notadd && pscount >= 0) {
+      if(strcmp(bufaux, "nothing") != 0 && !notadd && pscount >= 0) {
         for(int k = 0; k <= pscount; k++) {
           spec.p1 = p1s[k];
           spec.p2 = p2s[k];
@@ -451,14 +516,9 @@ void HandleBuffer(int deploy_full) {
           memcpy(&comms[scomms], &spec, sizeof(struct command_spec));
           scomms++;
           
-          printf("Added command (%d:%d): %.2x %.2x %g %g (%d)\n", scomms, cap_comms, spec.p1, spec.p2, spec.beat, spec.beatEnd, spec.isHold);
-          
-          spec.beat += addBeat;
-          spec.beatEnd += addBeat;
+          printf("Added command at %ld (%d:%d): %.2x %.2x %ld %ld (%d)\n", 
+            t, scomms, cap_comms, spec.p1, spec.p2, spec.time, spec.timeEnd, spec.isHold);
         }
-        
-        
-        // TODO: Ok, now we added the command, but now we need to check the holds a little
       }
       
       bufaux = f + 1;
@@ -471,6 +531,7 @@ void HandleBuffer(int deploy_full) {
     }
   }
   //printf("Current state of the buf: %s\n", buf);
+  return req;
 }
 
 static void OnUpdateBPM(unsigned long bef, double bBPM) {
@@ -478,16 +539,14 @@ static void OnUpdateBPM(unsigned long bef, double bBPM) {
   
   double beats = GetBeat2(tlastchange - bef, bBPM);
   printf("The number of beats to update: %g\n", beats);
-  for(int i = 0; i < scomms; i++) {
-    comms[i].beat -= beats;
-    comms[i].beatEnd -= beats;
-    printf("Command %d changed: %g\n", i, comms[i].beat);
-  }
+
+  // NOTE: Here was a procedure to change all beats. It does not exist anymore
 }
 
 int auto_2=0;
 unsigned long lastAutoplayChange = 0;
 void KeyHandler_Twitch_Poll(void) {
+  KeyHandler_Twitch_UpdateLights(bytes_l);
   
   bytes_t[0] = 0xFF;
   bytes_t[1] = 0xFF;
@@ -496,7 +555,6 @@ void KeyHandler_Twitch_Poll(void) {
   bytes_tb[0] = 0xFF;
   bytes_tb[1] = 0xFF;
   unsigned long time = GetCurrentTime();
-  double beat = GetBeat(time);
   
   handle_socket();
   
@@ -517,21 +575,20 @@ void KeyHandler_Twitch_Poll(void) {
   int count = 0;
   // Erase the last voted at certain number of beats
   if(directionAnarchy != 0) {
-    double beatLastVoted = GetBeat(tlastVoted);
-    if((beat - beatLastVoted) > 4.0)
+    if((time - tlastVoted) > 4000000)
       directionAnarchy = 0;
   }
   
   // Explore all the commands for now
   for(int i = 0; i < scomms; i++) {
-    if(beat >= comms[i].beat) {
+    if(time >= comms[i].time) {
       bytes_t[0] &= comms[i].p1;
       bytes_t[2] &= comms[i].p2;
       bytes_g[0] &= comms[i].p1;
       bytes_g[2] &= comms[i].p2;
       // Mark as expired only if the hold is not vigent
       if(comms[i].isHold) {
-        if(beat <= comms[i].beatEnd) {
+        if(time <= comms[i].timeEnd) {
           continue;
         }
       }
@@ -573,7 +630,7 @@ char L5P = 0 ;
 char sensed = 0;
 unsigned long tlast[SAMPLES] = {0, 0, 0, 0, 0};
 #define TOLERANCE 0.05 // From 0 to 1 (0 to 100%)
-void KeyHandler_Twitch_UpdateLights(char* bytes) {
+void KeyHandler_Twitch_UpdateLights(unsigned char* bytes) {
   
   // Subprogram to detect the BPM and the delay of a song
   
@@ -651,4 +708,88 @@ void KeyHandler_Twitch_UpdateLights(char* bytes) {
   
   
   L1P = L1 ;  L2P = L2 ;  L3P = L3 ;  L4P = L4 ;  L5P = L5 ;
+}
+
+void HandleRequest(int req) {
+  char msg[256] = "";
+  if(req == STATE_REQUEST_LIGHTS) {
+    int p1[5] = {
+      (bytes_l[0] & 0x1) ? 1:0, 
+      (bytes_l[0] & 0x2) ? 1:0, 
+      (bytes_l[0] & 0x4) ? 1:0, 
+      (bytes_l[0] & 0x8) ? 1:0, 
+      (bytes_l[0] & 0x10) ? 1:0};
+    int p2[5] = {
+      (bytes_l[2] & 0x1) ? 1:0, 
+      (bytes_l[2] & 0x2) ? 1:0, 
+      (bytes_l[2] & 0x4) ? 1:0, 
+      (bytes_l[2] & 0x8) ? 1:0, 
+      (bytes_l[2] & 0x10) ? 1:0};
+
+    // L2(clone): bytes_l[3] & 0x04
+    // L1:        bytes_l[2] & 0x80
+    // Neon:      bytes_l[1] & 0x04
+    // L1(clone): bytes_l[3] & 0x01
+    // L2:        bytes_l[3] & 0x02
+
+    int l2c  = (bytes_l[3] & 0x04) ? 1:0 ;
+    int l1   = (bytes_l[2] & 0x80) ? 1:0 ;
+    int neon = (bytes_l[1] & 0x04) ? 1:0 ;
+    int l1c  = (bytes_l[3] & 0x01) ? 1:0 ;
+    int l2   = (bytes_l[3] & 0x02) ? 1:0 ;
+
+    snprintf(msg, sizeof(msg), "%d%d%d%d%d %d%d%d%d%d %d%d%d%d%d\n", 
+      p1[0], p1[1], p1[2], p1[3], p1[4], 
+      p2[0], p2[1], p2[2], p2[3], p2[4], 
+      l2c, l1, neon, l1c, l2);
+
+    send(newsockfd, msg, strlen(msg), 0);
+    //printf("Sent the light status\n");
+  }
+  if(req == STATE_REQUEST_LIGHTS_RAW) {
+    snprintf(msg, sizeof(msg), "%.2x%.2x%.2x%.2x\n", 
+      bytes_l[0], bytes_l[1], bytes_l[2], bytes_l[3]);
+
+    send(newsockfd, msg, strlen(msg), 0);
+    //printf("Sent the light raw status\n");
+  }
+  if(req == STATE_REQUEST_STEP) {
+    unsigned char p1r = bytes_f[0] & bytes_f[1] & bytes_f[2] & bytes_f[3];
+    unsigned char p2r = bytes_f[4] & bytes_f[5] & bytes_f[6] & bytes_f[7];
+    int p1[5] = {
+      (p1r & 0x1) ? 1:0, 
+      (p1r & 0x2) ? 1:0, 
+      (p1r & 0x4) ? 1:0, 
+      (p1r & 0x8) ? 1:0, 
+      (p1r & 0x10) ? 1:0};
+    int p2[5] = {
+      (p2r & 0x1) ? 1:0, 
+      (p2r & 0x2) ? 1:0, 
+      (p2r & 0x4) ? 1:0, 
+      (p2r & 0x8) ? 1:0, 
+      (p2r & 0x10) ? 1:0};
+
+    int service = (bytes_f[8] & 0x02) ? 1:0;
+    int coin1 = (bytes_f[8] & 0x04) ? 1:0;
+    int test = (bytes_f[8] & 0x40) ? 1:0;
+    int clear = (bytes_f[8] & 0x80) ? 1:0;
+    int coin2 = (bytes_f[9] & 0x04) ? 1:0;
+
+    snprintf(msg, sizeof(msg), "%d%d%d%d%d %d%d%d%d%d %d%d%d%d%d\n", 
+      p1[0], p1[1], p1[2], p1[3], p1[4], 
+      p2[0], p2[1], p2[2], p2[3], p2[4], 
+      service, coin1, test, clear, coin2);
+
+    send(newsockfd, msg, strlen(msg), 0);
+    //printf("Sent the step status\n");
+  }
+  if(req == STATE_REQUEST_STEP_RAW) {
+    snprintf(msg, sizeof(msg), "%.2x%.2x%.2x%.2x %.2x%.2x%.2x%.2x %.2x%.2x%.2x%.2x\n", 
+      bytes_f[0], bytes_f[1], bytes_f[2], bytes_f[3],
+      bytes_f[4], bytes_f[5], bytes_f[6], bytes_f[7],
+      bytes_f[8], bytes_f[9], bytes_f[10], bytes_f[11]);
+
+    send(newsockfd, msg, strlen(msg), 0);
+    //printf("Sent the step raw status\n");
+  }
 }
