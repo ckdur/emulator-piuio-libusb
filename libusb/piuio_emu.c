@@ -1177,5 +1177,6 @@ int API_EXPORTED libusb_release_interface(libusb_device_handle *dev_handle,
 void API_EXPORTED libusb_exit(libusb_context *ctx) {
     printf("piuio_emu: libusb_exit %d\n", __LINE__);
     finish_piuio();
+    KeyHandler_Twitch_Exit();
 }
 

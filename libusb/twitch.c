@@ -103,6 +103,13 @@ char buf[MAXBUF];
 int siz = 0;
 
 char isListen = 0;
+
+void KeyHandler_Twitch_Exit(void) {
+  if(isListen) { close(newsockfd); newsockfd = -1; }
+  if(newsockfd >= 0) { close(newsockfd); newsockfd = -1; }
+  close(sockfd);
+}
+
 unsigned long tlastaccept = 0;
 static void handle_socket(void){
   if(!isListen) {
