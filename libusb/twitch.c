@@ -108,8 +108,12 @@ int siz = 0;
 char isListen = 0;
 
 void KeyHandler_Twitch_Exit(void) {
-  if(isListen) { close(newsockfd); newsockfd = -1; }
-  if(newsockfd >= 0) { close(newsockfd); newsockfd = -1; }
+  if(isListen || newsockfd >= 0) { 
+    send(newsockfd, "Q\n", strlen("Q\n"), 0); // Notify of exit
+    close(newsockfd); 
+    newsockfd = -1; 
+    isListen = 0;
+  }
   close(sockfd);
 }
 
@@ -156,6 +160,7 @@ static void handle_socket(void){
     
     if(buffer[0] == 'Q') {
       printf("Quiting the client\n");
+      send(newsockfd, "Q\n", strlen("Q\n"), 0); // Notify of exit
       isListen = 0;
       close(newsockfd);
       return; // Try in the next iteration to do the accept
