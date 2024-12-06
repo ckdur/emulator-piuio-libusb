@@ -18,6 +18,7 @@
 //char bytes_t[4];
 //char bytes_tb[2];
 char bytes_g[4];
+char bytes_gb[2];
 int HandleBuffer(int deploy_full);
 void HandleRequest(int req);
 unsigned long GetCurrentTime(void);
@@ -50,6 +51,8 @@ void KeyHandler_Twitch_Init(void) {
 	bytes_g[1] = 0xFF;
 	bytes_g[2] = 0xFF;
 	bytes_g[3] = 0xFF;
+	bytes_gb[0] = 0xFF;
+	bytes_gb[1] = 0xFF;
 	bytes_t[0] = 0xFF;
 	bytes_t[1] = 0xFF;
 	bytes_t[2] = 0xFF;
@@ -238,7 +241,8 @@ int numberUsers = 100;
 double constVote = 1.0; // Each person has to vote 1 times
 unsigned long tlastVoted = 0;
 unsigned long delay = 0;
-
+int poll_change_lights = 0;
+int poll_change_steps = 0;
 
 int HandleBuffer(int deploy_full) {
   if(siz <= 0) return 0;
@@ -272,14 +276,16 @@ int HandleBuffer(int deploy_full) {
       char* f2 = bufaux;
       char* fs = bufaux;
       char first = 1;
-      char p1s[12];
-      char p2s[12];
-      int pscount = 0;
-      memset(p1s, 0xFFFFFFFF, 12);
-      memset(p2s, 0xFFFFFFFF, 12);
+      char* p1s = malloc(1);
+      char* p2s = malloc(1);
+      int pscount = 1;
+      p1s[0] = 0xFF;
+      p2s[0] = 0xFF;
       struct command_spec spec;
       spec.p1 = 0xFF;
       spec.p2 = 0xFF;
+      spec.s1 = 0xFF;
+      spec.s2 = 0xFF;
       spec.isHold = 0;
       // To determinate the beat, we need to get the current time
       // add the delay time
@@ -290,6 +296,7 @@ int HandleBuffer(int deploy_full) {
       unsigned long addTime = 0;
       unsigned long addTimeHold = 0;
       char notadd = 0;
+      double defAddBeat = 0.25;
       
       // Now, analyze the command
       
@@ -382,44 +389,117 @@ int HandleBuffer(int deploy_full) {
             directionAnarchy++;
             break;
           }
+
+          if(strcmp(fs, "d") == 0) {
+            uint32_t st;
+            char* conv = f2+1;
+            int arg = sscanf(conv, "%x", &st);
+            if(arg == 1) {
+              uint32_t* pt_g = (uint32_t*)bytes_g;
+              (*pt_g) = st;
+            }
+            break;
+          }
+
+          if(strcmp(fs, "b") == 0) {
+            uint32_t st;
+            char* conv = f2+1;
+            int arg = sscanf(conv, "%x", &st);
+            if(arg == 1) {
+              uint16_t* pt_gb = (uint16_t*)bytes_gb;
+              (*pt_gb) = (uint16_t)st;
+            }
+            break;
+          }
         
-          if(strcmp(fs, "upleft")  == 0) {
+          if(strcmp(fs, "coin") == 0) {
+            spec.s1 &= ~0x4;
+          }
+          if(strcmp(fs, "coin2") == 0) {
+            spec.s2 &= ~0x4;
+          }
+        
+          if(strcmp(fs, "service") == 0) {
+            spec.s1 &= ~0x2;
+          }
+          if(strcmp(fs, "test") == 0) {
+            spec.s1 &= ~0x40;
+          }
+          if(strcmp(fs, "clear") == 0) {
+            spec.s1 &= ~0x80;
+          }
+
+          if(strcmp(fs, "p1upleft") == 0) {
+            spec.p1 &= ~0x1;
+          }
+          if(strcmp(fs, "p1upright") == 0) {
+            spec.p1 &= ~0x2;
+          }
+          if(strcmp(fs, "p1center") == 0) {
+            spec.p1 &= ~0x4;
+          }
+          if(strcmp(fs, "p1downleft") == 0) {
+            spec.p1 &= ~0x8;
+          }
+          if(strcmp(fs, "p1downright") == 0) {
+            spec.p1 &= ~0x10;
+          }
+
+          if(strcmp(fs, "p2upleft") == 0) {
             spec.p2 &= ~0x1;
           }
-          if(strcmp(fs, "upright")  == 0) {
+          if(strcmp(fs, "p2upright") == 0) {
             spec.p2 &= ~0x2;
           }
-          if(strcmp(fs, "center")  == 0) {
+          if(strcmp(fs, "p2center") == 0) {
             spec.p2 &= ~0x4;
           }
-          if(strcmp(fs, "downleft")  == 0) {
+          if(strcmp(fs, "p2downleft") == 0) {
             spec.p2 &= ~0x8;
           }
-          if(strcmp(fs, "downright")  == 0) {
+          if(strcmp(fs, "p2downright") == 0) {
             spec.p2 &= ~0x10;
           }
           int len = strlen(fs);
           for(int i = 0; i < len; i++) {
-            if(fs[i] == 'q' || fs[i] == '7') {
-              p2s[pscount] &= ~0x1;
+            if(fs[i] == 'q') {
+              p1s[pscount-1] &= ~0x1;
             }
-            if(fs[i] == 'e' || fs[i] == '9') {
-              p2s[pscount] &= ~0x2;
+            if(fs[i] == 'e') {
+              p1s[pscount-1] &= ~0x2;
             }
-            if(fs[i] == 's' || fs[i] == '5') {
-              p2s[pscount] &= ~0x4;
+            if(fs[i] == 's') {
+              p1s[pscount-1] &= ~0x4;
             }
-            if(fs[i] == 'z' || fs[i] == '1') {
-              p2s[pscount] &= ~0x8;
+            if(fs[i] == 'z') {
+              p1s[pscount-1] &= ~0x8;
             }
-            if(fs[i] == 'c' || fs[i] == '3') {
-              p2s[pscount] &= ~0x10;
+            if(fs[i] == 'c') {
+              p1s[pscount-1] &= ~0x10;
             }
+
+            if(fs[i] == 'r' || fs[i] == '7') {
+              p2s[pscount-1] &= ~0x1;
+            }
+            if(fs[i] == 'y' || fs[i] == '9') {
+              p2s[pscount-1] &= ~0x2;
+            }
+            if(fs[i] == 'g' || fs[i] == '5') {
+              p2s[pscount-1] &= ~0x4;
+            }
+            if(fs[i] == 'v' || fs[i] == '1') {
+              p2s[pscount-1] &= ~0x8;
+            }
+            if(fs[i] == 'n' || fs[i] == '3') {
+              p2s[pscount-1] &= ~0x10;
+            }
+
             if(fs[i] == '-') {
-              if(pscount >= 11) {
-                break;
-              }
               pscount++;
+              p1s = realloc(p1s, pscount);
+              p2s = realloc(p1s, pscount);
+              p1s[pscount-1] = 0xFF;
+              p2s[pscount-1] = 0xFF;
             }
           }
         }
@@ -446,7 +526,8 @@ int HandleBuffer(int deploy_full) {
             double nextalign = ceil(beat / beatAlign) * beatAlign;
             double finalbeat = nextalign + addBeat - beat;
             
-             addTime = GetTime(finalbeat) + t;
+            addTime = GetTime(finalbeat) + t;
+            defAddBeat = addBeat;
           }
           
           // hxxx.xxx
@@ -484,6 +565,7 @@ int HandleBuffer(int deploy_full) {
               arg = sscanf(fs+1, "%lg", &beat);
               if(arg == 1) {
                 steptime = GetTime2(beat, fBPM);
+                defAddBeat = beat;
               }
             }
             else {
@@ -494,7 +576,7 @@ int HandleBuffer(int deploy_full) {
               }
             }
             if(arg == 1) {
-              addTime += steptime;
+              addTime = steptime;
             }
           }
         }
@@ -514,8 +596,8 @@ int HandleBuffer(int deploy_full) {
       spec.timeEnd = spec.time + addTimeHold;
       
       // if this is true, we add the command
-      if(strcmp(bufaux, "nothing") != 0 && !notadd && pscount >= 0) {
-        for(int k = 0; k <= pscount; k++) {
+      if(strcmp(bufaux, "nothing") != 0 && !notadd && pscount > 0) {
+        for(int k = 0; k < pscount; k++) {
           spec.p1 = p1s[k];
           spec.p2 = p2s[k];
           
@@ -525,6 +607,8 @@ int HandleBuffer(int deploy_full) {
           
           printf("Added command at %ld (%d:%d): %.2x %.2x %ld %ld (%d)\n", 
             t, scomms, cap_comms, spec.p1, spec.p2, spec.time, spec.timeEnd, spec.isHold);
+          
+          spec.time += GetTime2(defAddBeat, fBPM);
         }
       }
       
@@ -535,6 +619,8 @@ int HandleBuffer(int deploy_full) {
         buf[siz] = 0;
         break;
       }
+      free(p1s);
+      free(p2s);
     }
   }
   //printf("Current state of the buf: %s\n", buf);
@@ -555,12 +641,12 @@ unsigned long lastAutoplayChange = 0;
 void KeyHandler_Twitch_Poll(void) {
   KeyHandler_Twitch_UpdateLights(bytes_l);
   
-  bytes_t[0] = 0xFF;
-  bytes_t[1] = 0xFF;
-  bytes_t[2] = 0xFF;
-  bytes_t[3] = 0xFF;
-  bytes_tb[0] = 0xFF;
-  bytes_tb[1] = 0xFF;
+  bytes_t[0] = bytes_g[0];
+  bytes_t[1] = bytes_g[1];
+  bytes_t[2] = bytes_g[2];
+  bytes_t[3] = bytes_g[3];
+  bytes_tb[0] = bytes_gb[0];
+  bytes_tb[1] = bytes_gb[1];
   unsigned long time = GetCurrentTime();
   
   handle_socket();
@@ -591,8 +677,8 @@ void KeyHandler_Twitch_Poll(void) {
     if(time >= comms[i].time) {
       bytes_t[0] &= comms[i].p1;
       bytes_t[2] &= comms[i].p2;
-      bytes_g[0] &= comms[i].p1;
-      bytes_g[2] &= comms[i].p2;
+      bytes_t[1] &= comms[i].s1;
+      bytes_t[3] &= comms[i].s2;
       // Mark as expired only if the hold is not vigent
       if(comms[i].isHold) {
         if(time <= comms[i].timeEnd) {
@@ -717,21 +803,29 @@ void KeyHandler_Twitch_UpdateLights(unsigned char* bytes) {
   L1P = L1 ;  L2P = L2 ;  L3P = L3 ;  L4P = L4 ;  L5P = L5 ;
 }
 
+unsigned char bytes_f_prev[16] = { // As LX
+    0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 1P
+    0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 2P
+    0xFF, 0xFF, // Coins, service
+    0xFF, 0xFF, // Frontal buttons in LX mode
+    0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
+unsigned char bytes_l_prev[4] = {0x00, 0x00, 0x00, 0x00};
+
 void HandleRequest(int req) {
   char msg[256] = "";
   if(req == STATE_REQUEST_LIGHTS) {
     int p1[5] = {
-      (bytes_l[0] & 0x1) ? 1:0, 
-      (bytes_l[0] & 0x2) ? 1:0, 
       (bytes_l[0] & 0x4) ? 1:0, 
       (bytes_l[0] & 0x8) ? 1:0, 
-      (bytes_l[0] & 0x10) ? 1:0};
+      (bytes_l[0] & 0x10) ? 1:0, 
+      (bytes_l[0] & 0x20) ? 1:0, 
+      (bytes_l[0] & 0x40) ? 1:0};
     int p2[5] = {
-      (bytes_l[2] & 0x1) ? 1:0, 
-      (bytes_l[2] & 0x2) ? 1:0, 
       (bytes_l[2] & 0x4) ? 1:0, 
       (bytes_l[2] & 0x8) ? 1:0, 
-      (bytes_l[2] & 0x10) ? 1:0};
+      (bytes_l[2] & 0x10) ? 1:0, 
+      (bytes_l[2] & 0x20) ? 1:0, 
+      (bytes_l[2] & 0x40) ? 1:0};
 
     // L2(clone): bytes_l[3] & 0x04
     // L1:        bytes_l[2] & 0x80
@@ -755,7 +849,7 @@ void HandleRequest(int req) {
   }
   if(req == STATE_REQUEST_LIGHTS_RAW) {
     snprintf(msg, sizeof(msg), "%.2x%.2x%.2x%.2x\n", 
-      bytes_l[0], bytes_l[1], bytes_l[2], bytes_l[3]);
+      bytes_l[3], bytes_l[2], bytes_l[1], bytes_l[0]);
 
     send(newsockfd, msg, strlen(msg), 0);
     //printf("Sent the light raw status\n");
@@ -792,11 +886,49 @@ void HandleRequest(int req) {
   }
   if(req == STATE_REQUEST_STEP_RAW) {
     snprintf(msg, sizeof(msg), "%.2x%.2x%.2x%.2x %.2x%.2x%.2x%.2x %.2x%.2x%.2x%.2x\n", 
-      bytes_f[0], bytes_f[1], bytes_f[2], bytes_f[3],
-      bytes_f[4], bytes_f[5], bytes_f[6], bytes_f[7],
-      bytes_f[8], bytes_f[9], bytes_f[10], bytes_f[11]);
+      bytes_f[3], bytes_f[2], bytes_f[1], bytes_f[0],
+      bytes_f[7], bytes_f[6], bytes_f[5], bytes_f[4],
+      bytes_f[11], bytes_f[10], bytes_f[9], bytes_f[8]);
 
     send(newsockfd, msg, strlen(msg), 0);
     //printf("Sent the step raw status\n");
   }
+  if(req == STATE_REQUEST_LIGHTS_RECURRENT) {
+    poll_change_lights = 1;
+    send(newsockfd, "ok\n", strlen("ok\n"), 0);
+  }
+  if(req == STATE_REQUEST_LIGHTS_RECURRENT_OFF) {
+    poll_change_lights = 0;
+    send(newsockfd, "off\n", strlen("off\n"), 0);
+  }
+  if(req == STATE_REQUEST_STEP_RECURRENT) {
+    poll_change_steps = 1;
+    send(newsockfd, "ok\n", strlen("ok\n"), 0);
+  }
+  if(req == STATE_REQUEST_STEP_RECURRENT_OFF) {
+    poll_change_steps = 0;
+    send(newsockfd, "off\n", strlen("off\n"), 0);
+  }
+
+  unsigned char bytes_l_next[4];  
+  memcpy(bytes_l_next, bytes_l, sizeof(bytes_l));
+  bytes_l_next[0] &= 0xFC;
+  bytes_l_next[2] &= 0xFC;
+  if(poll_change_lights && memcmp(bytes_l_prev, bytes_l_next, sizeof(bytes_l)) != 0) {
+    snprintf(msg, sizeof(msg), "l %.2x%.2x%.2x%.2x\n", 
+      bytes_l_next[3], bytes_l_next[2], bytes_l_next[1], bytes_l_next[0]);
+
+    send(newsockfd, msg, strlen(msg), 0);
+  }
+
+  if(poll_change_steps && memcmp(bytes_f_prev, bytes_f, sizeof(bytes_f)) != 0) {
+    snprintf(msg, sizeof(msg), "s %.2x%.2x%.2x%.2x %.2x%.2x%.2x%.2x %.2x%.2x%.2x%.2x\n", 
+      bytes_f[3], bytes_f[2], bytes_f[1], bytes_f[0],
+      bytes_f[7], bytes_f[6], bytes_f[5], bytes_f[4],
+      bytes_f[11], bytes_f[10], bytes_f[9], bytes_f[8]);
+
+    send(newsockfd, msg, strlen(msg), 0);
+  }
+  memcpy(bytes_f_prev, bytes_f, sizeof(bytes_f));
+  memcpy(bytes_l_prev, bytes_l_next, sizeof(bytes_l));
 }

@@ -15,6 +15,8 @@ extern char bytes_g[4]; // Purely for graphic purposes
 struct command_spec {
   char p1;
   char p2;
+  char s1;
+  char s2;
   unsigned long time;
   char isHold;
   unsigned long timeEnd;
@@ -26,6 +28,10 @@ enum STATE_REQUEST_ENUM {
   STATE_REQUEST_STEP,
   STATE_REQUEST_LIGHTS_RAW,
   STATE_REQUEST_STEP_RAW,
+  STATE_REQUEST_LIGHTS_RECURRENT,
+  STATE_REQUEST_STEP_RECURRENT,
+  STATE_REQUEST_LIGHTS_RECURRENT_OFF,
+  STATE_REQUEST_STEP_RECURRENT_OFF,
   STATE_REQUEST_END
 };
 
