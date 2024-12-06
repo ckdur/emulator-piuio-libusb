@@ -77,6 +77,13 @@ void KeyHandler_Twitch_Init(void) {
   sockfd = socket(AF_INET, SOCK_STREAM, 0);
   if (sockfd < 0) 
     error("ERROR opening socket");
+
+  int opt = 1;
+  if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+    perror("setsockopt failed");
+    close(sockfd);
+    exit(EXIT_FAILURE);
+  }
   
   const char *val;
   int net_port = 1025;
@@ -110,6 +117,7 @@ char isListen = 0;
 void KeyHandler_Twitch_Exit(void) {
   if(isListen || newsockfd >= 0) { 
     send(newsockfd, "Q\n", strlen("Q\n"), 0); // Notify of exit
+    shutdown(newsockfd, SHUT_RDWR);
     close(newsockfd); 
     newsockfd = -1; 
     isListen = 0;
