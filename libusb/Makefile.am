@@ -91,8 +91,8 @@ endif
 endif
 
 libusb_1_0_la_LDFLAGS = $(LT_LDFLAGS) $(EXTRA_LDFLAGS)
-libusb_1_0_la_SOURCES = libusbi.h version.h version_nano.h piuio_emu.h keyboards.h piuio.h twitch.h \
-	core.c piuio_emu.c keyboards.c descriptor.c piuio.c hotplug.c io.c strerror.c sync.c twitch.c \
+libusb_1_0_la_SOURCES = libusbi.h version.h version_nano.h piuio_emu.h keyboards.h piuio.h twitch.h autoplay.h \
+	core.c piuio_emu.c keyboards.c descriptor.c piuio.c hotplug.c io.c strerror.c sync.c twitch.c autoplay.c \
 	$(PLATFORM_SRC) $(OS_SRC)
 
 pkginclude_HEADERS = libusb.h

@@ -1,6 +1,6 @@
 #include "piuio_emu.h"
 #include "twitch.h"
-//#include "autoplay.h"
+#include "autoplay.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -365,6 +365,18 @@ int HandleBuffer(int deploy_full) {
             break;
           }
           
+          if(strcmp(fs, "setvote") == 0) {
+            char* conv = f2+1;
+            double k;
+            int arg = sscanf(conv, "%lg", &k);
+            if(arg == 1) {
+              currentAnarchy = k;
+              if(currentAnarchy < 0.0) currentAnarchy = 0.0;
+              if(currentAnarchy > 1.0) currentAnarchy = 1.0;
+            }
+            break;
+          }
+          
           if(strcmp(fs, "constvote") == 0) {
             char* conv = f2+1;
             double k;
@@ -649,7 +661,6 @@ static void OnUpdateBPM(unsigned long bef, double bBPM) {
   // NOTE: Here was a procedure to change all beats. It does not exist anymore
 }
 
-int auto_2=0;
 unsigned long lastAutoplayChange = 0;
 void KeyHandler_Twitch_Poll(void) {
   KeyHandler_Twitch_UpdateLights(bytes_l);
@@ -667,12 +678,13 @@ void KeyHandler_Twitch_Poll(void) {
   // Autoplay stuff
   if(currentAnarchy >= limitAnarchy) {
     if((time - lastAutoplayChange) > 1000000) {
-      if(currentAnarchy >= 0.99) auto_2 = 0;
-      else auto_2 = rand() % 4;
+      if(currentAnarchy >= 0.99) {auto_1 = auto_2 = 0;}
+      else {auto_1 = auto_2 = rand() % 4;}
       lastAutoplayChange = time;
     }
   }
   else {
+    auto_1 = -1;
     auto_2 = -1;
   }
 
