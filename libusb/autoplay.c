@@ -8,6 +8,9 @@
 #include <string.h>
 #include <inttypes.h>
 
+#include <sys/mman.h>
+#define UNPROTECT(addr,len) (mprotect((void*)(addr-(addr%len)),len,PROT_READ|PROT_WRITE|PROT_EXEC))
+
 // NOTE: For the name, search for "ANDAMIRO CO"
 
 // For the demo vars, use the following: (POST-NXA)
@@ -170,6 +173,150 @@ struct autoplay_construct {
 };
 
 struct autoplay_construct all_contstructs[] = {
+    // PIU 1st, Schaff Compilation new version
+    {
+        .version = 5,
+        .cmp_name = "IT UP",
+        .cmp_ver = "VER 0.53.1999.9.31",
+        .name = (void*)(0x8134ade + 5),
+        .ver = (void*)(0x8134e43),
+        .demo_var = (void*)0, // TODO
+        .p1_a = (void*)0, // TODO
+        .p2_a = (void*)0,
+        .const_val = 0x1,
+    },
+    // PIU 2nd, Schaff Compilation new version
+    {
+        .version = 5,
+        .cmp_name = "IT UP",
+        .cmp_ver = "Dec 27 1999",
+        .name = (void*)(0x812e6da + 5),
+        .ver = (void*)(0x812e7e8),
+        .demo_var = (void*)0, // TODO
+        .p1_a = (void*)0, // TODO
+        .p2_a = (void*)0,
+        .const_val = 0x1,
+    },
+    // PIU OBG, Schaff Compilation new version
+    {
+        .version = 5,
+        .cmp_name = "it up 3rd (v%d.%02d)",
+        .cmp_ver = "May 07 2000",
+        .name = (void*)(0x80ffc06 + 5),
+        .ver = (void*)(0x80ffc22),
+        .demo_var = (void*)0x81081ca, // orig: data_108bac // TODO: Does not work
+        .p1_a = (void*)0x844e22a, // orig: data_44ec0c
+        .p2_a = (void*)0x844e22a,
+        .const_val = 0x1,
+    },
+    // PIU OBG SE, Schaff Compilation new version
+    {
+        .version = 5,
+        .cmp_name = "IT UP (R4/v%d.%02d)",
+        .cmp_ver = "Aug 27 2000",
+        .name = (void*)(0x8118e0f + 5),
+        .ver = (void*)(0x8118e2b),
+        .demo_var = (void*)0x81234df, // orig: data_12ad28 // TODO: Does not work
+        .p1_a = (void*)0x8459ab3, // orig: data_4612fc
+        .p2_a = (void*)0x8459ab3,
+        .const_val = 0x1,
+    },
+    // PIU The collection, Schaff Compilation new version
+    {
+        .version = 5,
+        .cmp_name = "IT UP (R%d/v%d.%02d)",
+        .cmp_ver = "Nov 14 2000",
+        .name = (void*)(0x8119f16 + 5),
+        .ver = (void*)(0x8119f32),
+        .demo_var = (void*)0x8124d4e, // orig: data_12b6a4 // TODO: Does not work
+        .p1_a = (void*)0x86df096, // orig: data_6e59ec
+        .p2_a = (void*)0,
+        .const_val = 0x1,
+    },
+    // PIU Perfect collection, Schaff Compilation new version
+    {
+        .version = 5,
+        .cmp_name = "IT UP (R%d/v%d.%02d)",
+        .cmp_ver = "Dec 18 2000",
+        .name = (void*)(0x8115ec1 + 5),
+        .ver = (void*)(0x8115edb),
+        .demo_var = (void*)0x81206d2, // orig: data_12b028 // TODO: Does not work
+        .p1_a = (void*)0x86d6fc2, // orig: data_6e1918
+        .p2_a = (void*)0x86d6fc2,
+        .const_val = 0x1,
+    },
+    // PIU Extra, Schaff Compilation new version
+    {
+        .version = 5,
+        .cmp_name = "IT UP (R4/v%d.%02d)",
+        .cmp_ver = "Mar 08 2001",
+        .name = (void*)(0x8124cae + 5),
+        .ver = (void*)(0x8124cc7),
+        .demo_var = (void*)0x81c4096, // orig: data_1cfb08
+        .p1_a = (void*)0x82fbe96, // orig: data_307908
+        .p2_a = (void*)0x82fbe96,
+        .const_val = 0x1,
+    },
+    // PIU Premiere 1, Schaff Compilation new version
+    {
+        .version = 5,
+        .cmp_name = "IT UP (R%d/v%d.%02d)",
+        .cmp_ver = "Feb 22 2001",
+        .name = (void*)(0x8116eae + 5),
+        .ver = (void*)(0x8116ec8),
+        .demo_var = (void*)0x814e65a, // orig: data_157fb0 // TODO: Does not work
+        .p1_a = (void*)0x887d60a, // orig: data_886f60
+        .p2_a = (void*)0x887d60a,
+        .const_val = 0x1,
+    },
+    // PIU Prex 1, Schaff Compilation new version
+    {
+        .version = 4,
+        .cmp_name = "IT UP (REV2 / %d)",
+        .cmp_ver = "",
+        .name = (void*)(0x811e4f7 + 5),
+        .ver = (void*)(0x811e4f7 + 5),
+        .demo_var = (void*)0x81293ce, // orig: data_12bd20
+        .p1_a = (void*)0x89c6cd2, // orig: data_9c9624 // TODO: Does not work
+        .p2_a = (void*)0x89c6cd2, // orig: data_9c9624
+        .const_val = 0x1,
+    },
+    // PIU Rebirth, Schaff Compilation new version
+    {
+        .version = 4,
+        .cmp_name = "IT UP (REBIRTH / %d)",
+        .cmp_ver = "",
+        .name = (void*)(0x8122437 + 5),
+        .ver = (void*)(0x8122451),
+        .demo_var = (void*)0x813257a, // orig: data_140ecc
+        .p1_a = (void*)0x8a59366, // orig: data_a67cb8
+        .p2_a = (void*)0x8a59366,
+        .const_val = 0x1,
+    },
+    // PIU Premiere 2, Schaff Compilation new version
+    {
+        .version = 4,
+        .cmp_name = "IT UP (PREMIERE 2/%d)",
+        .cmp_ver = "CO.,LTD.",
+        .name = (void*)(0x8122527 + 5),
+        .ver = (void*)(0x8122542 + 20),
+        .demo_var = (void*)0x813267a, // orig: data_140fcc
+        .p1_a = (void*)0x8a596e6, // orig: data_a68038
+        .p2_a = (void*)0x8a596e6,
+        .const_val = 0x1,
+    },
+    // PIU Prex 2, Schaff Compilation new version
+    {
+        .version = 4,
+        .cmp_name = "IT UP (PREX 2/%d)",
+        .cmp_ver = "CO.,LTD.",
+        .name = (void*)(0x81271a7 + 5),
+        .ver = (void*)(0x81271be + 20),
+        .demo_var = (void*)0x8137876, // orig: data_1411c4
+        .p1_a = (void*)0x8a4e9e6, // orig: data_a58334
+        .p2_a = (void*)0x8a4e9e6,
+        .const_val = 0x1,
+    },
     // PIU Premiere 3, Schaff Compilation new version
     {
         .version = 4,
@@ -197,9 +344,9 @@ struct autoplay_construct all_contstructs[] = {
     // PIU Exceed 1, Dec  7 2004
     {
         .version = 3,
-        .cmp_name = "PUMP IT UP - THE EXCEED",
+        .cmp_name = "IT UP - THE EXCEED",
         .cmp_ver = "(BUILD:%d)",
-        .name = (void*)0x806fd9e,
+        .name = (void*)(0x806fd9e + 5),
         .ver = (void*)0x8077aa8,
         .demo_var = (void*)0x80a8d74, // Actually, not used
         .p1_a = (void*)0x3c91d, // 1 and 2 are the same
@@ -218,9 +365,9 @@ struct autoplay_construct all_contstructs[] = {
     */
     {
         .version = 3,
-        .cmp_name = "PUMP IT UP - THE EXCEED 2",
+        .cmp_name = "IT UP - THE EXCEED 2",
         .cmp_ver = "Dec  7 2004",
-        .name = (void*)0x8079ada,
+        .name = (void*)(0x8079ada + 5),
         .ver = (void*)0x807d258,
         .demo_var = (void*)0x80becd4, // Actually, not used
         .p1_a = (void*)0x4abf1, // 1 and 2 are the same
@@ -248,9 +395,9 @@ struct autoplay_construct all_contstructs[] = {
      */
     {
         .version = 3,
-        .cmp_name = "PUMP IT UP: ZERO",
+        .cmp_name = "IT UP: ZERO",
         .cmp_ver = "(BUILD:1.03)",
-        .name = (void*)0x80ff766,
+        .name = (void*)(0x80ff766 + 5),
         .ver = (void*)0x80ff777,
         .demo_var = (void*)0xdcd0, // Actually, not used
         // 0x9dc8a60 +
@@ -264,9 +411,9 @@ struct autoplay_construct all_contstructs[] = {
     // PIU NX v08
     {
         .version = 2,
-        .cmp_name = "PUMP IT UP: NX",
+        .cmp_name = "IT UP: NX",
         .cmp_ver = "(BUILD:1.08)",
-        .name = (void*)0x80fa83a,
+        .name = (void*)(0x80fa83a + 5),
         .ver = (void*)0x81140e6,
         .demo_var = (void*)0x81f8901,
         // 0xabd54e0 +
@@ -280,9 +427,9 @@ struct autoplay_construct all_contstructs[] = {
     // PIU NX2 v54
     {
         .version = 1,
-        .cmp_name = "PUMP IT UP: NX2",
+        .cmp_name = "IT UP: NX2",
         .cmp_ver = "(BUILD:1.54%s)",
-        .name = (void*)0x80f1a62,
+        .name = (void*)(0x80f1a62 + 5),
         .ver = (void*)0x80fa05c,
         .demo_var = (void*)0x81c5d81,
         .p1_a = (void*)0x9e34b6c,
@@ -301,9 +448,9 @@ struct autoplay_construct all_contstructs[] = {
     */
     {
         .version = 0,
-        .cmp_name = "PUMP IT UP: NXA",
+        .cmp_name = "IT UP: NXA",
         .cmp_ver = "(BUILD:1.10%s)",
-        .name = (void*)0x8113aca,
+        .name = (void*)(0x8113aca + 5),
         .ver = (void*)0x811caca,
         .demo_var = (void*)0x81edd01,
         .p1_a = (void*)0x9e96580,
@@ -319,9 +466,9 @@ struct autoplay_construct all_contstructs[] = {
     */
     {
         .version = 0,
-        .cmp_name = "PUMP IT UP: FIESTA",
+        .cmp_name = "IT UP: FIESTA",
         .cmp_ver = "1.20",
-        .name = (void*)0x812c501,
+        .name = (void*)(0x812c501 + 5),
         .ver = (void*)0x812ca00,
         .demo_var = (void*)0x81e9280,
         .p1_a = (void*)0xa91de5c,
@@ -337,9 +484,9 @@ struct autoplay_construct all_contstructs[] = {
     */
     {
         .version = 0,
-        .cmp_name = "PUMP IT UP: FIESTA EX",
+        .cmp_name = "IT UP: FIESTA EX",
         .cmp_ver = "1.51",
-        .name = (void*)0x81378a4,
+        .name = (void*)(0x81378a4 + 5),
         .ver = (void*)0x8137e60,
         .demo_var = (void*)0x81f4920,
         .p1_a = (void*)0xa92a1e0,
@@ -355,9 +502,9 @@ struct autoplay_construct all_contstructs[] = {
     */
     {
         .version = 0,
-        .cmp_name = "PUMP IT UP: FIESTA 2(%s)",
+        .cmp_name = "IT UP: FIESTA 2(%s)",
         .cmp_ver = "V1.60",
-        .name = (void*)0x81a6bb0,
+        .name = (void*)(0x81a6bb0 + 5),
         .ver = (void*)0x81a6ce4,
         .demo_var = (void*)0x9d83760,
         .p1_a = (void*)0x9440050,
@@ -367,10 +514,10 @@ struct autoplay_construct all_contstructs[] = {
     // Now, this one was fucked up by snax, we use a slightly different string
     {
         .version = 0,
-        .cmp_name = "(C) 1999-2015 ANDAMIRO CO., LTD.",
-        .cmp_ver = "(BUILD:%s)",
-        .name = (void*)0x81b3aa0,
-        .ver = (void*)0x81b3a12,
+        .cmp_name = "IT UP: PRIME JP",
+        .cmp_ver = "1.17.0",
+        .name = (void*)(0x81b39ea + 5),
+        .ver = (void*)0x81b3c04,
         .demo_var = (void*)0xe35e4c0,
         .p1_a = (void*)0xab7fb58,
         .p2_a = (void*)0xaba0d88,
@@ -378,9 +525,9 @@ struct autoplay_construct all_contstructs[] = {
     // PIU PRIME v21 Autoplay variables
     {
         .version = 0,
-        .cmp_name = "PUMP IT UP: PRIME",
+        .cmp_name = "IT UP: PRIME",
         .cmp_ver = "V1.21.0",
-        .name = (void*)0x81b4355,
+        .name = (void*)(0x81b4355 + 5),
         .ver = (void*)0x81b6b84,
         .demo_var = (void*)0xE35CDE0,
         .p1_a = (void*)0xAB7E678,
@@ -389,9 +536,9 @@ struct autoplay_construct all_contstructs[] = {
     // PIU PRIME v22 Autoplay variables
     {
         .version = 0,
-        .cmp_name = "PUMP IT UP: PRIME",
+        .cmp_name = "IT UP: PRIME",
         .cmp_ver = "V1.22.0",
-        .name = (void*)0x81b42d5,
+        .name = (void*)(0x81b42d5 + 5),
         .ver = (void*)0x81b6b04,
         .demo_var = (void*)0xe35ce00,
         .p1_a = (void*)0xab7e698,
@@ -407,9 +554,9 @@ struct autoplay_construct all_contstructs[] = {
     */
     {
         .version = 0,
-        .cmp_name = "PUMP IT UP: PRIME2",
+        .cmp_name = "IT UP: PRIME2",
         .cmp_ver = "v2.05.1",
-        .name = (void*)0x8189583,
+        .name = (void*)(0x8189583 + 5),
         .ver = (void*)0x8189618,
         .demo_var = (void*)0xaaf0b84,
         .p1_a = (void*)0x0ac1f5c4,
@@ -425,9 +572,9 @@ struct autoplay_construct all_contstructs[] = {
     */
     {
         .version = 0,
-        .cmp_name = "PUMP IT UP: XX",
+        .cmp_name = "IT UP: XX",
         .cmp_ver = "v2.08.3",
-        .name = (void*)0x81b81a2,
+        .name = (void*)(0x81b81a2 + 5),
         .ver = (void*)0x81b8404,
         .demo_var = (void*)0xa0634e4,
         .p1_a = (void*)0x08c2676c,
@@ -524,7 +671,7 @@ void check_autoplay(void) {
     for(int i = 0; i < size_all_constructs; i++) {
         if(memcheck(all_contstructs[i].name) == 0 && memcheck(all_contstructs[i].ver) == 0 && 
             strcmp(all_contstructs[i].name, all_contstructs[i].cmp_name) == 0 && 
-            strcmp(all_contstructs[i].ver, all_contstructs[i].cmp_ver) == 0) {
+            memcmp(all_contstructs[i].ver, all_contstructs[i].cmp_ver, strlen(all_contstructs[i].cmp_ver)) == 0) {
         
             int skip_mem = 0;
             printf("Detected for %s (%s)\n", all_contstructs[i].cmp_name, all_contstructs[i].cmp_ver);
@@ -543,10 +690,34 @@ void check_autoplay(void) {
                 player1_auto = all_contstructs[i].p1_a;
                 player2_auto = all_contstructs[i].p2_a;
             }
+            if(all_contstructs[i].version == 4) {
+                // Removing that ugly stuff about the NTDEC
+                // Good watermark if people ever copy our stuff
+                all_contstructs[i].name -= 5;
+                UNPROTECT((int)all_contstructs[i].name, 4096);
+                memcpy(all_contstructs[i].name, "PUMP", 4); // Replace HACK/FUCK for PUMP
+                if(strlen(all_contstructs[i].cmp_ver) != 0) {
+                    all_contstructs[i].ver -= 20;
+                    UNPROTECT((int)all_contstructs[i].ver, 4096);
+                    memcpy(all_contstructs[i].ver+10, "ANDAMIRO", 8); // Replace NTDEC/FMG for ANDAMIRO
+                }
+            }
+            if(all_contstructs[i].version == 5) {
+                // Removing that ugly stuff about the NTDEC
+                // Good watermark if people ever copy our stuff
+                all_contstructs[i].name -= 5;
+                UNPROTECT((int)all_contstructs[i].name, 4096);
+                memcpy(all_contstructs[i].name, "PUMP", 4); // Replace HACK/FUCK for PUMP
+            }
+            if(all_contstructs[i].version == 0) {
+                UNPROTECT((int)all_contstructs[i].ver, 4096);
+                strcpy(all_contstructs[i].ver, all_contstructs[i].cmp_ver);
+            }
+
             printf("p1: %p, p2: %p\n", player1_auto, player2_auto);
             auto_version = all_contstructs[i].version;
-            game_name = all_contstructs[i].cmp_name;
-            game_ver = all_contstructs[i].cmp_ver;
+            game_name = all_contstructs[i].name;
+            game_ver = all_contstructs[i].ver;
             auto_val = all_contstructs[i].const_val;
             auto_chosen = i;
             if(!(memcheck(player1_auto) == 0 && memcheck(player2_auto) == 0) && !skip_mem)
@@ -577,7 +748,7 @@ void update_autoplay (void) {
         //if(auto_1) *(int*)player1_auto = 1;
     }
 
-    if(all_contstructs[i].version == 4) {
+    if(all_contstructs[i].version == 4 || all_contstructs[i].version == 5) {
         if(auto_1 != -1) (*(char*)player1_auto) = 0x1;
         else (*(char*)player1_auto) = 0x0;
         return;
