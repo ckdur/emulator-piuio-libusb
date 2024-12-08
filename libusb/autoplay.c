@@ -252,7 +252,7 @@ struct autoplay_construct all_contstructs[] = {
         .cmp_ver = "Mar 08 2001",
         .name = (void*)(0x8124cae + 5),
         .ver = (void*)(0x8124cc7),
-        .demo_var = (void*)0x81c4096, // orig: data_1cfb08
+        .demo_var = (void*)0x81c4096, // orig: data_1cfb08 // TODO: Does not work
         .p1_a = (void*)0x82fbe96, // orig: data_307908
         .p2_a = (void*)0x82fbe96,
         .const_val = 0x1,
@@ -690,12 +690,12 @@ void check_autoplay(void) {
                 player1_auto = all_contstructs[i].p1_a;
                 player2_auto = all_contstructs[i].p2_a;
             }
+            // Removing that ugly stuff about the NTDEC
+            // Good watermark if people ever copy our stuff
+            all_contstructs[i].name -= 5;
+            UNPROTECT((int)all_contstructs[i].name, 4096);
+            memcpy(all_contstructs[i].name, "PUMP", 4); // Replace HACK/FUCK for PUMP
             if(all_contstructs[i].version == 4) {
-                // Removing that ugly stuff about the NTDEC
-                // Good watermark if people ever copy our stuff
-                all_contstructs[i].name -= 5;
-                UNPROTECT((int)all_contstructs[i].name, 4096);
-                memcpy(all_contstructs[i].name, "PUMP", 4); // Replace HACK/FUCK for PUMP
                 if(strlen(all_contstructs[i].cmp_ver) != 0) {
                     all_contstructs[i].ver -= 20;
                     UNPROTECT((int)all_contstructs[i].ver, 4096);
