@@ -1,13 +1,16 @@
+#define _GNU_SOURCE
+#define _USE_GNU
 #include "autoplay.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <string.h>
+#include <inttypes.h>
 
 // NOTE: For the name, search for "ANDAMIRO CO"
 
-// For the demo vars, use the following:
+// For the demo vars, use the following: (POST-NXA)
 /* For the demo vars, use the following:
     - Search for the "DEMO" parsing. There shall be a strcasecmp with it, and sets certain global in 1
     - The global is the "m_bDemo" variable, which is global and shows the "DEMO MODE"
@@ -92,80 +95,387 @@
   See line 80. DAT_0ab7e694 is the judgament, but DAT_0ab7e698 is the real one
 
  */
+// Anything pre-NXA is not needed. Those are just version 1 and the address just works
+// You need to put 1 
 
-// PIU PRIME v21 Autoplay variables
-char* prime1_v21_name = (void*)0x81b4355; // "PUMP IT UP: PRIME"
-char*prime1_v21_ver = (void*)0x81b6b84; // "V1.21.0"
-unsigned char* prime1_v21_demo_var = (void*)0xE35CDE0;
-unsigned int* prime1_v21_player1_auto = (void*)0xAB7E678;
-unsigned int* prime1_v21_player2_auto = (void*)0xAB9F8A8;
-
-// PIU PRIME v22 Autoplay variables
-char* prime1_v22_name = (void*)0x81b42d5; // "PUMP IT UP: PRIME"
-char*prime1_v22_ver = (void*)0x8189618; // "V1.22.0"
-unsigned char* prime1_v22_demo_var = (void*)0xe35ce00;
-unsigned int* prime1_v22_player1_auto = (void*)0xab7e698;
-unsigned int* prime1_v22_player2_auto = (void*)0xab9f8c8;
-
-// PIU PRIME2 v05_1
-/*   
-  if ((((&DAT_0ac1f5c4)[uVar12 * 0x849f] != -1) ||
-      (*(int *)(&DAT_0ac1f5c0 + uVar12 * 0x2127c) != -1)) &&
-     ((DAT_0aaf0b88 >> (uVar12 & 0x1f) & 1) != 0)) {
-    FUN_080f2540();
-  }
- */
-char* prime2_v05_1_name = (void*)0x8189583; // "PUMP IT UP: PRIME2"
-char* prime2_v05_1_ver = (void*)0x8189618; // "v2.05.1"
-unsigned char* prime2_v05_1_demo_var = (void*)0xaaf0b84;
-unsigned int* prime2_v05_1_player1_auto = (void*)0x0ac1f5c4;
-unsigned int* prime2_v05_1_player2_auto = (void*)0x0ac40840;
-
-// PIU XX v05_1
+// As for NX, it needs a VERSION2
+// The demo variable is encapsulated in the PLAY object treated as a 
 /*
-  if ((((&DAT_08c2676c)[uVar10 * 0x8479] != -1) ||
-      (*(int *)(&DAT_08c26768 + uVar10 * 0x211e4) != -1)) &&
-     ((DAT_0a0634e8 >> (uVar10 & 0x1f) & 1) != 0)) {
-    FUN_080a1de0();
-  }
+(gdb) print *((char**)(*(int*)($esp+4) + 0x14018 + 16*0x18))
+$46 = 0x80fa849 "PLAY"
+
+ So, once you find the Begin() AKA function that host the -demo parsing, you will notice also the vtable
+
+
+                             PTR_FUN_0810f728                                XREF[5]:     FUN_080686c0:080686d3(*), 
+                                                                                          FUN_08068bb0:08068bc3(*), 
+                                                                                          FUN_080690a0:080690b0(*), 
+                                                                                          FUN_08069410:08069420(*), 
+                                                                                          FUN_08069780:08069790(*)  
+        0810f728 10 94 06 08     addr       FUN_08069410
+        0810f72c 80 97 06 08     addr       FUN_08069780
+        0810f730 00 aa 06 08     addr       CPlayEngine::Begin()
+        0810f734 e0 be 06 08     addr       FUN_0806bee0
+        0810f738 80 c6 06 08     addr       FUN_0806c680
+        0810f73c b0 df 06 08     addr       FUN_0806dfb0
+        0810f740 80 e3 06 08     addr       FUN_0806e380
+        0810f744 f8              ??         F8h
+        0810f745 fe              ??         FEh
+        0810f746 ff              ??         FFh
+        0810f747 ff              ??         FFh
+        0810f748 00              ??         00h                                              ?  ->  0810f800
+        0810f749 f8              ??         F8h
+        0810f74a 10              ??         10h
+        0810f74b 08              ??         08h
+                             PTR_LAB_0810f74c                                XREF[10]:    FUN_080686c0:080686d9(*), 
+                                                                                          FUN_080686c0:080686e4(*), 
+                                                                                          FUN_08068bb0:08068bc9(*), 
+                                                                                          FUN_08068bb0:08068bd4(*), 
+                                                                                          FUN_080690a0:080690a1(*), 
+                                                                                          FUN_080690a0:080690bc(*), 
+                                                                                          FUN_08069410:08069411(*), 
+                                                                                          FUN_08069410:0806942c(*), 
+                                                                                          FUN_08069780:08069781(*), 
+                                                                                          FUN_08069780:0806979c(*)  
+        0810f74c 00 0b 07 08     addr       LAB_08070b00
+        0810f750 10 0b 07 08     addr       LAB_08070b10
+        0810f754 20 0b 07 08     addr       LAB_08070b20
+        0810f758 30 0b 07 08     addr       LAB_08070b30
+        0810f75c 40 0b 07 08     addr       LAB_08070b40
+        0810f760 50 0b 07 08     addr       LAB_08070b50
+        0810f764 60 0b 07 08     addr       LAB_08070b60
+
+Any of those will work to get the "proc_to_manager_offset"
+
+As for the proc_manager and GetProc, just search for "PLAY" and you will notice the function with the object call
+As is an C++ functuion, the first argument is the proc_manager, the second is the "PLAY", and the function is actually the GetPRoc
+
  */
 
-char* xx_v08_3_name = (void*)0x81b81a2; // "PUMP IT UP: XX"
-char* xx_v08_3_ver = (void*)0x81b8404; // "v2.08.3"
-unsigned char* xx_v08_3_demo_var = (void*)0xa0634e4;
-unsigned int* xx_v08_3_player1_auto = (void*)0x08c2676c;
-unsigned int* xx_v08_3_player2_auto = (void*)0x08c47950;
+typedef void* (*procmanager_GetProc)(void* obj, const char* name);
 
+struct autoplay_construct {
+  int version;
+  const char* cmp_name;
+  const char* cmp_ver;
+  char* name;
+  char* ver;
+  unsigned char* demo_var;
+  unsigned int* p1_a;
+  unsigned int* p2_a;
+  void* proc_manager;
+  void* procmanager_GetProc;
+  void* proc_to_manager_offset;
+  unsigned int const_val;
+};
+
+struct autoplay_construct all_contstructs[] = {
+    // PIU Premiere 3, Schaff Compilation new version
+    {
+        .version = 4,
+        .cmp_name = "IT UP (PREMIERE 3/%d)",
+        .cmp_ver = "CO.,LTD.",
+        .name = (void*)(0x8128c63 + 5),
+        .ver = (void*)(0x8128c7e + 20),
+        .demo_var = (void*)0x813895d, // Actually not used, originally  data_14152c
+        .p1_a = (void*)0x8a54246, // 1 and 2 are the same, originally data_a5c3f4
+        .p2_a = (void*)0x8a54246,
+        .const_val = 0x1,
+    },
+    // PIU Prex 3, Schaff Compilation new version
+    {
+        .version = 4,
+        .cmp_name = "IT UP (PREX 3 / %d)",
+        .cmp_ver = "CO.,LTD.",
+        .name = (void*)(0x812825e + 5),
+        .ver = (void*)(0x8128277 + 20),
+        .demo_var = (void*)0x813895d, // Actually not used, originally  data_1416bc
+        .p1_a = (void*)0x8a53829, // 1 and 2 are the same, originally data_a5c588
+        .p2_a = (void*)0x8a53829,
+        .const_val = 0x1,
+    },
+    // PIU Exceed 1, Dec  7 2004
+    {
+        .version = 3,
+        .cmp_name = "PUMP IT UP - THE EXCEED",
+        .cmp_ver = "(BUILD:%d)",
+        .name = (void*)0x806fd9e,
+        .ver = (void*)0x8077aa8,
+        .demo_var = (void*)0x80a8d74, // Actually, not used
+        .p1_a = (void*)0x3c91d, // 1 and 2 are the same
+        .p2_a = (void*)0x3c91d,
+        .proc_manager = (void*)0x80a8dd0,
+        .procmanager_GetProc = (void*)0x805e7c4,
+        .proc_to_manager_offset = (void*)0xfffcf008, // Got it from the virtual table
+        .const_val = 1,
+    },
+    // PIU Exceed 2, Dec  7 2004
+    /*   
+  if ((*(char *)(param_1 + 0x4abf1) != '\0') || ((m_bDemo & 0x1000000) != 0)) {
+    FUN_0805fbfe(param_1,0);
+    FUN_0805fbfe();
+  }
+    */
+    {
+        .version = 3,
+        .cmp_name = "PUMP IT UP - THE EXCEED 2",
+        .cmp_ver = "Dec  7 2004",
+        .name = (void*)0x8079ada,
+        .ver = (void*)0x807d258,
+        .demo_var = (void*)0x80becd4, // Actually, not used
+        .p1_a = (void*)0x4abf1, // 1 and 2 are the same
+        .p2_a = (void*)0x4abf1,
+        .proc_manager = (void*)0x80bed54,
+        .procmanager_GetProc = (void*)0x8061c62,
+        .proc_to_manager_offset = (void*)0xfffcf008, // Got it from the virtual table
+        .const_val = 1,
+    },
+    // PIU ZERO v03
+    /*
+         
+  iVar5 = FUN_08059000(DAT_0811702c);
+    if ((iVar5 != 0) || (34999 < *(uint *)(param_1 + 0xdce0))) {
+      bVar11 = true;
+    }
+    iVar5 = *(int *)(param_1 + 0xdcd0);
+  }
+  if ((*(char *)(param_1 + 0xdd7d) != '\0') || ((*(byte *)(iVar5 + 7) & 1) != 0)) {
+    if ((*(uint *)(iVar5 + 4) & 0x540) == 0) {
+      FUN_0808d4e0(param_1,0,0);
+      uVar3 = 0;
+      bVar12 = true;
+    }
+     */
+    {
+        .version = 3,
+        .cmp_name = "PUMP IT UP: ZERO",
+        .cmp_ver = "(BUILD:1.03)",
+        .name = (void*)0x80ff766,
+        .ver = (void*)0x80ff777,
+        .demo_var = (void*)0xdcd0, // Actually, not used
+        // 0x9dc8a60 +
+        .p1_a = (void*)0xdd7d, // 1 and 2 are the same
+        .p2_a = (void*)0xdd7d,
+        .proc_manager = (void*)0x8117018,
+        .procmanager_GetProc = (void*)0x8057880,
+        .proc_to_manager_offset = (void*)0xfffffeec, // Got it from the virtual table
+        .const_val = 1,
+    },
+    // PIU NX v08
+    {
+        .version = 2,
+        .cmp_name = "PUMP IT UP: NX",
+        .cmp_ver = "(BUILD:1.08)",
+        .name = (void*)0x80fa83a,
+        .ver = (void*)0x81140e6,
+        .demo_var = (void*)0x81f8901,
+        // 0xabd54e0 +
+        .p1_a = (void*)0x10480, // 1 and 2 are the same
+        .p2_a = (void*)0x10480,
+        .proc_manager = (void*)0x814bca0,
+        .procmanager_GetProc = (void*)0x805ed50,
+        .proc_to_manager_offset = (void*)0xfffffef8, // Got it from the virtual table
+        .const_val = 1,
+    },
+    // PIU NX2 v54
+    {
+        .version = 1,
+        .cmp_name = "PUMP IT UP: NX2",
+        .cmp_ver = "(BUILD:1.54%s)",
+        .name = (void*)0x80f1a62,
+        .ver = (void*)0x80fa05c,
+        .demo_var = (void*)0x81c5d81,
+        .p1_a = (void*)0x9e34b6c,
+        .p2_a = (void*)0x9e372a0,
+        .const_val = 1,
+    },
+    // PIU NXA v10
+    /*
+    iVar19 = (&DAT_09e96580)[iVar18 * 0xd44];
+    if (iVar19 == -1) {
+      if (*(int *)(&DAT_09e9657c + iVar20) != -1) {
+        iVar19 = 0;
+        if (DAT_0a84f494 != 0) {
+          iVar19 = local_24;
+        }
+    */
+    {
+        .version = 0,
+        .cmp_name = "PUMP IT UP: NXA",
+        .cmp_ver = "(BUILD:1.10%s)",
+        .name = (void*)0x8113aca,
+        .ver = (void*)0x811caca,
+        .demo_var = (void*)0x81edd01,
+        .p1_a = (void*)0x9e96580,
+        .p2_a = (void*)0x9e99a90,
+    },
+    // PIU Fiesta v20
+    /*
+        iVar9 = iVar19 * 0x211f4;
+        iVar22 = (&DAT_0a91de5c)[iVar19 * 0x847d];
+        if (iVar22 == -1) {
+        if ((&DAT_0a91de58)[iVar19 * 0x847d] != -1) {
+            iVar22 = 0;
+    */
+    {
+        .version = 0,
+        .cmp_name = "PUMP IT UP: FIESTA",
+        .cmp_ver = "1.20",
+        .name = (void*)0x812c501,
+        .ver = (void*)0x812ca00,
+        .demo_var = (void*)0x81e9280,
+        .p1_a = (void*)0xa91de5c,
+        .p2_a = (void*)0xa93f050,
+    },
+    // PIU Fiesta EX v51
+    /*
+        iVar9 = iVar19 * 0x211f8;
+        iVar22 = (&DAT_0a92a1e0)[iVar19 * 0x847e];
+        if (iVar22 == -1) {
+        if ((&DAT_0a92a1dc)[iVar19 * 0x847e] != -1) {
+            iVar22 = 0;
+    */
+    {
+        .version = 0,
+        .cmp_name = "PUMP IT UP: FIESTA EX",
+        .cmp_ver = "1.51",
+        .name = (void*)0x81378a4,
+        .ver = (void*)0x8137e60,
+        .demo_var = (void*)0x81f4920,
+        .p1_a = (void*)0xa92a1e0,
+        .p2_a = (void*)0xa94b3d8,
+    },
+    // PIU Fiesta 2 v60
+    /*
+        if ((((&DAT_09440050)[uVar17 * 0x847a] != -1) ||
+            (*(int *)(&DAT_0944004c + uVar17 * 0x211e8) != -1)) &&
+            ((DAT_09d83764 >> (uVar17 & 0x1f) & 1) != 0)) {
+            FUN_080a6de0();
+        }
+    */
+    {
+        .version = 0,
+        .cmp_name = "PUMP IT UP: FIESTA 2(%s)",
+        .cmp_ver = "V1.60",
+        .name = (void*)0x81a6bb0,
+        .ver = (void*)0x81a6ce4,
+        .demo_var = (void*)0x9d83760,
+        .p1_a = (void*)0x9440050,
+        .p2_a = (void*)0x9461238,
+    },
+    // PIU PRIME JE v17
+    // Now, this one was fucked up by snax, we use a slightly different string
+    {
+        .version = 0,
+        .cmp_name = "(C) 1999-2015 ANDAMIRO CO., LTD.",
+        .cmp_ver = "(BUILD:%s)",
+        .name = (void*)0x81b3aa0,
+        .ver = (void*)0x81b3a12,
+        .demo_var = (void*)0xe35e4c0,
+        .p1_a = (void*)0xab7fb58,
+        .p2_a = (void*)0xaba0d88,
+    },
+    // PIU PRIME v21 Autoplay variables
+    {
+        .version = 0,
+        .cmp_name = "PUMP IT UP: PRIME",
+        .cmp_ver = "V1.21.0",
+        .name = (void*)0x81b4355,
+        .ver = (void*)0x81b6b84,
+        .demo_var = (void*)0xE35CDE0,
+        .p1_a = (void*)0xAB7E678,
+        .p2_a = (void*)0xAB9F8A8,
+    },
+    // PIU PRIME v22 Autoplay variables
+    {
+        .version = 0,
+        .cmp_name = "PUMP IT UP: PRIME",
+        .cmp_ver = "V1.22.0",
+        .name = (void*)0x81b42d5,
+        .ver = (void*)0x81b6b04,
+        .demo_var = (void*)0xe35ce00,
+        .p1_a = (void*)0xab7e698,
+        .p2_a = (void*)0xab9f8c8,
+    },
+    // PIU PRIME2 v05_1
+    /*   
+        if ((((&DAT_0ac1f5c4)[uVar12 * 0x849f] != -1) ||
+            (*(int *)(&DAT_0ac1f5c0 + uVar12 * 0x2127c) != -1)) &&
+        ((DAT_0aaf0b88 >> (uVar12 & 0x1f) & 1) != 0)) {
+        FUN_080f2540();
+        }
+    */
+    {
+        .version = 0,
+        .cmp_name = "PUMP IT UP: PRIME2",
+        .cmp_ver = "v2.05.1",
+        .name = (void*)0x8189583,
+        .ver = (void*)0x8189618,
+        .demo_var = (void*)0xaaf0b84,
+        .p1_a = (void*)0x0ac1f5c4,
+        .p2_a = (void*)0x0ac40840,
+    },
+    // PIU XX v05_1
+    /*
+        if ((((&DAT_08c2676c)[uVar10 * 0x8479] != -1) ||
+            (*(int *)(&DAT_08c26768 + uVar10 * 0x211e4) != -1)) &&
+        ((DAT_0a0634e8 >> (uVar10 & 0x1f) & 1) != 0)) {
+        FUN_080a1de0();
+        }
+    */
+    {
+        .version = 0,
+        .cmp_name = "PUMP IT UP: XX",
+        .cmp_ver = "v2.08.3",
+        .name = (void*)0x81b81a2,
+        .ver = (void*)0x81b8404,
+        .demo_var = (void*)0xa0634e4,
+        .p1_a = (void*)0x08c2676c,
+        .p2_a = (void*)0x08c47950,
+    },
+};
+
+int size_all_constructs = sizeof(all_contstructs) / sizeof(struct autoplay_construct);
 
 // Extracted from https://stackoverflow.com/questions/1576300/checking-if-a-pointer-is-allocated-memory-or-not
 
-jmp_buf jump;
+//sigjmp_buf jump;
+char always_valid[1] = {0x0};
+volatile int signald = 0;
 
-void segv (int sig);
-void segv (int sig)
+void segv (int sig, siginfo_t *si, ucontext_t* context);
+void segv (int sig, siginfo_t *si, ucontext_t* context)
 {
-    longjmp (jump, 1); 
+    //siglongjmp (jump, 1); 
+    // Restore it to something valid so it can pass
+    signald = 1;
+    context->uc_mcontext.gregs[REG_EAX] = (int)always_valid;
 }
 
 static int memcheck (void *x) 
 {
-    volatile char c;
-    int illegal = 0;
+    volatile int illegal = 0;
     struct sigaction old_action, new_action;
 
     // Set up the new signal handler
-    new_action.sa_handler = segv;
+    new_action.sa_sigaction = segv;
     sigemptyset(&new_action.sa_mask); // No additional signals blocked during handler execution
-    new_action.sa_flags = 0;         // No special flags
+    new_action.sa_flags = SA_SIGINFO;         // No special flags
 
     // Save the current handler and set the new one
     if (sigaction(SIGSEGV, &new_action, &old_action) == -1) {
         return -1;
     }
 
-    if (!setjmp (jump))
-        c = *(char *) (x);
-    else
+    signald = 0;
+    //volatile char c;
+    //c = *(char *) (to_check);
+    asm volatile ("movl %0, %%eax; mov (%%eax), %%al;":
+        :"r"(x)         /* input */
+        :"%eax"         /* clobbered register */
+    );
+
+    if(signald)
         illegal = 1;
 
     if (sigaction(SIGSEGV, &old_action, NULL) == -1) {
@@ -177,67 +487,109 @@ static int memcheck (void *x)
 
 unsigned int* player1_auto = NULL;
 unsigned int* player2_auto = NULL;
+const char* game_name = "NONE";
+const char* game_ver = "NONE";
 
 int auto_1 = -1;
 int auto_2 = -1;
 
 int auto_available = 0;
+int auto_version = 0;
+int auto_chosen = 0;
+int auto_val = 0;
+
+static void try_get_version_3(int i) {
+
+    procmanager_GetProc func = all_contstructs[i].procmanager_GetProc;
+    void* proc_manager = (void*)(*(int*)all_contstructs[i].proc_manager);
+    void* prept = (int)func(proc_manager, "PLAY");
+    if(memcheck(prept) != 0) return;
+    void* pt = (void*)((int)prept + (int)all_contstructs[i].proc_to_manager_offset);
+
+    if(memcheck(pt) != 0) return;
+    /*void* pt2 = (void*)(*(int*)((int)pt + (int)all_contstructs[i].p1_a));
+    if(memcheck(pt2) != 0) return;
+    player1_auto = (void*)((int)pt2 + 4);
+    player2_auto = (void*)((int)pt2 + 4);*/
+    player1_auto = (void*)((char*)pt + (int)all_contstructs[i].p1_a);
+    player2_auto = (void*)((char*)pt + (int)all_contstructs[i].p2_a);
+
+    printf("Function returned (v3): %p\n", pt);
+    printf("p1: %p, p2: %p\n", player1_auto, player2_auto);
+    return;
+}
+
 void check_autoplay(void) {
 
-    if(memcheck(prime1_v21_name) == 0 && memcheck(prime1_v21_ver) == 0 && 
-        memcheck(prime1_v21_player1_auto) == 0 && memcheck(prime1_v21_player2_auto) == 0 &&
-        strcmp(prime1_v21_name, "PUMP IT UP: PRIME") == 0 && strcmp(prime1_v21_ver, "V1.21.0") == 0) {
+    for(int i = 0; i < size_all_constructs; i++) {
+        if(memcheck(all_contstructs[i].name) == 0 && memcheck(all_contstructs[i].ver) == 0 && 
+            strcmp(all_contstructs[i].name, all_contstructs[i].cmp_name) == 0 && 
+            strcmp(all_contstructs[i].ver, all_contstructs[i].cmp_ver) == 0) {
         
-        printf("Detected for PRIME v21\n");
-        player1_auto = prime1_v21_player1_auto;
-        player2_auto = prime1_v21_player2_auto;
-        auto_available = 1;
+            int skip_mem = 0;
+            printf("Detected for %s (%s)\n", all_contstructs[i].cmp_name, all_contstructs[i].cmp_ver);
+            if(all_contstructs[i].version == 2) {
+                procmanager_GetProc func = all_contstructs[i].procmanager_GetProc;
+                void* pt = (void*)((int)func(all_contstructs[i].proc_manager, "PLAY") + (int)all_contstructs[i].proc_to_manager_offset);
+                printf("Function returned: %p\n", pt);
+                player1_auto = (void*)((char*)pt + (int)all_contstructs[i].p1_a);
+                player2_auto = (void*)((char*)pt + (int)all_contstructs[i].p2_a);
+            }
+            else if(all_contstructs[i].version == 3){
+                try_get_version_3(i);
+                skip_mem = 1;
+            }
+            else {
+                player1_auto = all_contstructs[i].p1_a;
+                player2_auto = all_contstructs[i].p2_a;
+            }
+            printf("p1: %p, p2: %p\n", player1_auto, player2_auto);
+            auto_version = all_contstructs[i].version;
+            game_name = all_contstructs[i].cmp_name;
+            game_ver = all_contstructs[i].cmp_ver;
+            auto_val = all_contstructs[i].const_val;
+            auto_chosen = i;
+            if(!(memcheck(player1_auto) == 0 && memcheck(player2_auto) == 0) && !skip_mem)
+                 continue;
+            auto_available = 1;
+            break;
+        }
     }
-
-    else if(memcheck(prime1_v22_name) == 0 && memcheck(prime1_v22_ver) == 0 && 
-        memcheck(prime1_v22_player1_auto) == 0 && memcheck(prime1_v22_player2_auto) == 0 &&
-        strcmp(prime1_v22_name, "PUMP IT UP: PRIME") == 0 && strcmp(prime1_v22_ver, "V1.22.0") == 0) {
-        
-        printf("Detected for PRIME v22\n");
-        player1_auto = prime1_v22_player1_auto;
-        player2_auto = prime1_v22_player2_auto;
-        auto_available = 1;
-    }
-
-    else if(memcheck(prime2_v05_1_name) == 0 && memcheck(prime2_v05_1_ver) == 0 && 
-        memcheck(prime2_v05_1_player1_auto) == 0 && memcheck(prime2_v05_1_player2_auto) == 0 &&
-        strcmp(prime2_v05_1_name, "PUMP IT UP: PRIME2") == 0 && strcmp(prime2_v05_1_ver, "v2.05.1") == 0) {
-        
-        printf("Detected for PRIME2 v05_1\n");
-        player1_auto = prime2_v05_1_player1_auto;
-        player2_auto = prime2_v05_1_player2_auto;
-        auto_available = 1;
-    }
-
-    else if(memcheck(xx_v08_3_name) == 0 && memcheck(xx_v08_3_ver) == 0 && 
-        memcheck(xx_v08_3_player1_auto) == 0 && memcheck(xx_v08_3_player2_auto) == 0 &&
-        strcmp(xx_v08_3_name, "PUMP IT UP: XX") == 0 && strcmp(xx_v08_3_ver, "v2.08.3") == 0) {
-        
-        printf("Detected for XX v05_1\n");
-        player1_auto = xx_v08_3_player1_auto;
-        player2_auto = xx_v08_3_player2_auto;
-        auto_available = 1;
-    }
-    else {
-        printf("No autpplay support\n");
+    if(!auto_available) {
+        printf("No autoplay support\n");
     }
 }
+
 void update_autoplay (void) {
   
     if(!auto_available) return;
 
+    int i = auto_chosen;
+
+    if(all_contstructs[i].version == 3) {
+        if(player1_auto == NULL) {
+            try_get_version_3(i);
+            if(player1_auto == NULL) return; // Still not ready
+        }
+
+        //printf("Auto: %.08x\n", *(int*)player1_auto);
+        //if(auto_1) *(int*)player1_auto |= 0x1000010;
+        //if(auto_1) *(int*)player1_auto = 1;
+    }
+
+    if(all_contstructs[i].version == 4) {
+        if(auto_1 != -1) (*(char*)player1_auto) = 0x1;
+        else (*(char*)player1_auto) = 0x0;
+        return;
+    }
+
     if(auto_1 != -1)
-        (*player1_auto) = auto_1;
+        (*player1_auto) = auto_version == 0 ? auto_1: auto_val;
     else
-        (*player1_auto) = 0xFFFFFFFF;
+        (*player1_auto) = auto_version == 0 ? 0xFFFFFFFF : 0;
 
     if(auto_2 != -1)
-        (*player2_auto) = auto_2;
+        (*player2_auto) = auto_version == 0 ? auto_2: auto_val;
     else
-        (*player2_auto) = 0xFFFFFFFF;
+        (*player2_auto) = auto_version == 0 ? 0xFFFFFFFF : 0;
 }

@@ -247,12 +247,6 @@ double GetCurrentBeat(void)
   return GetBeat(t);
 }
 
-double limitAnarchy = 0.8;
-double currentAnarchy = 0.5;
-int directionAnarchy = 0;
-int numberUsers = 100;
-double constVote = 1.0; // Each person has to vote 1 times
-unsigned long tlastVoted = 0;
 unsigned long delay = 0;
 int poll_change_lights = 0;
 int poll_change_steps = 0;
@@ -350,68 +344,6 @@ int HandleBuffer(int deploy_full) {
             if(arg == 1 && k < STATE_REQUEST_END) {
               req = k;
             }
-            break;
-          }
-          
-          if(strcmp(fs, "setlimit") == 0) {
-            char* conv = f2+1;
-            double k;
-            int arg = sscanf(conv, "%lg", &k);
-            if(arg == 1) {
-              limitAnarchy = k;
-              if(limitAnarchy < 0.0) limitAnarchy = 0.0;
-              if(limitAnarchy > 1.0) limitAnarchy = 1.0;
-            }
-            break;
-          }
-          
-          if(strcmp(fs, "setvote") == 0) {
-            char* conv = f2+1;
-            double k;
-            int arg = sscanf(conv, "%lg", &k);
-            if(arg == 1) {
-              currentAnarchy = k;
-              if(currentAnarchy < 0.0) currentAnarchy = 0.0;
-              if(currentAnarchy > 1.0) currentAnarchy = 1.0;
-            }
-            break;
-          }
-          
-          if(strcmp(fs, "constvote") == 0) {
-            char* conv = f2+1;
-            double k;
-            int arg = sscanf(conv, "%lg", &k);
-            if(arg == 1) {
-              constVote = k;
-            }
-            break;
-          }
-          
-          if(strcmp(fs, "users") == 0) {
-            char* conv = f2+1;
-            int k;
-            int arg = sscanf(conv, "%d", &k);
-            if(arg == 1) {
-              numberUsers = k;
-            }
-            break;
-          }
-          
-          if(memcmp(fs, "freeplay", 8) == 0 || memcmp(fs, "anarchy", 7) == 0) {
-            tlastVoted = GetCurrentTime();
-            // Modulate the vote
-            currentAnarchy -= 1.0/(double)numberUsers/constVote;
-            if(currentAnarchy < 0.0) currentAnarchy = 0.0;
-            directionAnarchy--;
-            break;
-          }
-          
-          if(memcmp(fs, "autoplay", 8) == 0 || memcmp(fs, "democracy", 9) == 0) {
-            tlastVoted = GetCurrentTime();
-            // Modulate the vote
-            currentAnarchy += 1.0/(double)numberUsers/constVote;
-            if(currentAnarchy > 1.0) currentAnarchy = 1.0;
-            directionAnarchy++;
             break;
           }
 
@@ -661,7 +593,6 @@ static void OnUpdateBPM(unsigned long bef, double bBPM) {
   // NOTE: Here was a procedure to change all beats. It does not exist anymore
 }
 
-unsigned long lastAutoplayChange = 0;
 void KeyHandler_Twitch_Poll(void) {
   KeyHandler_Twitch_UpdateLights(bytes_l);
   
@@ -674,28 +605,10 @@ void KeyHandler_Twitch_Poll(void) {
   unsigned long time = GetCurrentTime();
   
   handle_socket();
-  
-  // Autoplay stuff
-  if(currentAnarchy >= limitAnarchy) {
-    if((time - lastAutoplayChange) > 1000000) {
-      if(currentAnarchy >= 0.99) {auto_1 = auto_2 = 0;}
-      else {auto_1 = auto_2 = rand() % 4;}
-      lastAutoplayChange = time;
-    }
-  }
-  else {
-    auto_1 = -1;
-    auto_2 = -1;
-  }
 
 #define MAX_PROCS 128
   int expired[MAX_PROCS];
   int count = 0;
-  // Erase the last voted at certain number of beats
-  if(directionAnarchy != 0) {
-    if((time - tlastVoted) > 4000000)
-      directionAnarchy = 0;
-  }
   
   // Explore all the commands for now
   for(int i = 0; i < scomms; i++) {
@@ -933,6 +846,23 @@ void HandleRequest(int req) {
   if(req == STATE_REQUEST_STEP_RECURRENT_OFF) {
     poll_change_steps = 0;
     send(newsockfd, "off\n", strlen("off\n"), 0);
+  }
+  if(req == STATE_AUTOPLAY_ON) {
+    auto_1 = 0;
+    auto_2 = 0;
+    send(newsockfd, "ok\n", strlen("ok\n"), 0);
+  }
+  if(req == STATE_AUTOPLAY_OFF) {
+    auto_1 = -1;
+    auto_2 = -1;
+    send(newsockfd, "off\n", strlen("off\n"), 0);
+  }
+  if(req == STATE_GET_GAME_NAME) {
+    snprintf(msg, sizeof(msg), "%s,%s\n", 
+      game_name, game_ver);
+
+    send(newsockfd, msg, strlen(msg), 0);
+    //printf("Sent the step raw status\n");
   }
 
   unsigned char bytes_l_next[4];  
