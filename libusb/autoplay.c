@@ -155,27 +155,43 @@ As is an C++ functuion, the first argument is the proc_manager, the second is th
 
  */
 
+// For anything before PREX1, needs version 5
+// First, locate the demo state var, which should be the same as the
+// game state var. Locate anything that &0x10 is different than zero
+// and the "else" condition should call two functions
+// The first one is the random judgament
+
 typedef void* (*procmanager_GetProc)(void* obj, const char* name);
 
 struct autoplay_construct {
   int version;
+  // All version - matching
   const char* cmp_name;
   const char* cmp_ver;
   char* name;
   char* ver;
+  // Versions 0-4,- demovar and judgament
   unsigned char* demo_var;
   unsigned int* p1_a;
   unsigned int* p2_a;
+  // Version 2-3 - Proc manager stuff
   void* proc_manager;
   void* procmanager_GetProc;
   void* proc_to_manager_offset;
   unsigned int const_val;
+  // Version 5 - Location of jumps and random judgament
+  const char** rjumps; // Data to replace
+
+  void** jumps; // Actual location addresses
+  int* sjumps; // Size to patch
+  int njumps; // Number of jumps
+  void* rand_judgament; // Location of the random judgament function
 };
 
 struct autoplay_construct all_contstructs[] = {
     // PIU 1st, Schaff Compilation new version
     {
-        .version = 5,
+        .version = 0,
         .cmp_name = "IT UP",
         .cmp_ver = "VER 0.53.1999.9.31",
         .name = (void*)(0x8134ade + 5),
@@ -187,7 +203,7 @@ struct autoplay_construct all_contstructs[] = {
     },
     // PIU 2nd, Schaff Compilation new version
     {
-        .version = 5,
+        .version = 0,
         .cmp_name = "IT UP",
         .cmp_ver = "Dec 27 1999",
         .name = (void*)(0x812e6da + 5),
@@ -208,6 +224,13 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0x844e22a, // orig: data_44ec0c
         .p2_a = (void*)0x844e22a,
         .const_val = 0x1,
+        .rjumps = (const char*[]){
+            "\x90\x90", 
+            "\x90\x90\x90\x90\x90\x90"}, // NOPs only
+        .jumps = (void*[]){(void*)0x8051678, (void*)0x80518cc},
+        .sjumps = (int[]){2, 6},
+        .njumps = 2,
+        .rand_judgament = (void*)0, // Just a regular rand
     },
     // PIU OBG SE, Schaff Compilation new version
     {
@@ -220,6 +243,13 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0x8459ab3, // orig: data_4612fc
         .p2_a = (void*)0x8459ab3,
         .const_val = 0x1,
+        .rjumps = (const char*[]){
+            "\x90\x90", 
+            "\x90\x90"}, // NOPs only
+        .jumps = (void*[]){(void*)0x80519c1, (void*)0x8051c24},
+        .sjumps = (int[]){2, 2},
+        .njumps = 2,
+        .rand_judgament = (void*)0, // Just a regular rand
     },
     // PIU The collection, Schaff Compilation new version
     {
@@ -232,6 +262,13 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0x86df096, // orig: data_6e59ec
         .p2_a = (void*)0,
         .const_val = 0x1,
+        .rjumps = (const char*[]){
+            "\x90\x90", 
+            "\x90\x90"}, // NOPs only
+        .jumps = (void*[]){(void*)0x80519c0, (void*)0x8051c1c},
+        .sjumps = (int[]){2, 2},
+        .njumps = 2,
+        .rand_judgament = (void*)0, // Just a regular rand
     },
     // PIU Perfect collection, Schaff Compilation new version
     {
@@ -244,6 +281,13 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0x86d6fc2, // orig: data_6e1918
         .p2_a = (void*)0x86d6fc2,
         .const_val = 0x1,
+        .rjumps = (const char*[]){
+            "\x90\x90", 
+            "\x90\x90"}, // NOPs only
+        .jumps = (void*[]){(void*)0x8051469, (void*)0x8051692},
+        .sjumps = (int[]){2, 2},
+        .njumps = 2,
+        .rand_judgament = (void*)0x8050e9d, // func_23e2a
     },
     // PIU Extra, Schaff Compilation new version
     {
@@ -256,6 +300,13 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0x82fbe96, // orig: data_307908
         .p2_a = (void*)0x82fbe96,
         .const_val = 0x1,
+        .rjumps = (const char*[]){
+            "\x90\x90", 
+            "\x90\x90\x90\x90\x90\x90"}, // NOPs only
+        .jumps = (void*[]){(void*)0x805565a, (void*)0x8055bf1},
+        .sjumps = (int[]){2, 6},
+        .njumps = 2,
+        .rand_judgament = (void*)0, // Does not exist.
     },
     // PIU Premiere 1, Schaff Compilation new version
     {
@@ -268,18 +319,32 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0x887d60a, // orig: data_886f60
         .p2_a = (void*)0x887d60a,
         .const_val = 0x1,
+        .rjumps = (const char*[]){
+            "\x90\x90", 
+            "\x90\x90"}, // NOPs only
+        .jumps = (void*[]){(void*)0x805170c, (void*)0x805192e},
+        .sjumps = (int[]){2, 2},
+        .njumps = 2,
+        .rand_judgament = (void*)0x8051139, // func_240e0
     },
     // PIU Prex 1, Schaff Compilation new version
     {
-        .version = 4,
+        .version = 5,
         .cmp_name = "IT UP (REV2 / %d)",
         .cmp_ver = "",
         .name = (void*)(0x811e4f7 + 5),
-        .ver = (void*)(0x811e4f7 + 5),
+        .ver = (void*)(0x811e4f7 + 5), // TODO: The version is still not patched
         .demo_var = (void*)0x81293ce, // orig: data_12bd20
-        .p1_a = (void*)0x89c6cd2, // orig: data_9c9624 // TODO: Does not work
+        .p1_a = (void*)0x89c6cd2, // orig: data_9c9624 // NOTE: Does not work
         .p2_a = (void*)0x89c6cd2, // orig: data_9c9624
         .const_val = 0x1,
+        .rjumps = (const char*[]){
+            "\x90\x90", 
+            "\x90\x90"}, // NOPs only
+        .jumps = (void*[]){(void*)0x805568d, (void*)0x8055b16},
+        .sjumps = (int[]){2, 2},
+        .njumps = 2,
+        .rand_judgament = (void*)0x80543cf, // func_27368
     },
     // PIU Rebirth, Schaff Compilation new version
     {
@@ -436,6 +501,18 @@ struct autoplay_construct all_contstructs[] = {
         .p2_a = (void*)0x9e372a0,
         .const_val = 1,
     },
+    // PIU NX2 v60
+    {
+        .version = 1,
+        .cmp_name = "IT UP: NX2",
+        .cmp_ver = "(BUILD:1.60%s)",
+        .name = (void*)(0x80f19c2 + 5),
+        .ver = (void*)0x80f9ffc,
+        .demo_var = (void*)0x81c60c1,
+        .p1_a = (void*)0x9e3a18c,
+        .p2_a = (void*)0x9e3c8c0,
+        .const_val = 1,
+    },
     // PIU NXA v10
     /*
     iVar19 = (&DAT_09e96580)[iVar18 * 0xd44];
@@ -516,7 +593,7 @@ struct autoplay_construct all_contstructs[] = {
         .version = 0,
         .cmp_name = "IT UP: PRIME JP",
         .cmp_ver = "1.17.0",
-        .name = (void*)(0x81b39ea + 5),
+        .name = (void*)(0x81b39ea + 5), // 81b39ea
         .ver = (void*)0x81b3c04,
         .demo_var = (void*)0xe35e4c0,
         .p1_a = (void*)0xab7fb58,
@@ -590,13 +667,21 @@ int size_all_constructs = sizeof(all_contstructs) / sizeof(struct autoplay_const
 char always_valid[1] = {0x0};
 volatile int signald = 0;
 
-void segv (int sig, siginfo_t *si, ucontext_t* context);
-void segv (int sig, siginfo_t *si, ucontext_t* context)
+#define UNUSED(x) (void)(x)
+void segv (int sig, siginfo_t *si, void* ctx);
+void segv (int sig, siginfo_t *si, void* ctx)
 {
+    ucontext_t* context = ctx;
+    UNUSED(sig);
+    UNUSED(si);
     //siglongjmp (jump, 1); 
     // Restore it to something valid so it can pass
     signald = 1;
+#if defined(i386) || defined(__i386__) || defined(__i386) || defined(_M_IX86)
     context->uc_mcontext.gregs[REG_EAX] = (int)always_valid;
+#else
+    #error "Incompatible architecture for this implementation"
+#endif
 }
 
 static int memcheck (void *x) 
@@ -645,11 +730,14 @@ int auto_version = 0;
 int auto_chosen = 0;
 int auto_val = 0;
 
+int auto_patched = 0;
+char** auto_orig_jumps;
+
 static void try_get_version_3(int i) {
 
     procmanager_GetProc func = all_contstructs[i].procmanager_GetProc;
     void* proc_manager = (void*)(*(int*)all_contstructs[i].proc_manager);
-    void* prept = (int)func(proc_manager, "PLAY");
+    void* prept = (void*)func(proc_manager, "PLAY");
     if(memcheck(prept) != 0) return;
     void* pt = (void*)((int)prept + (int)all_contstructs[i].proc_to_manager_offset);
 
@@ -702,16 +790,21 @@ void check_autoplay(void) {
                     memcpy(all_contstructs[i].ver+10, "ANDAMIRO", 8); // Replace NTDEC/FMG for ANDAMIRO
                 }
             }
-            if(all_contstructs[i].version == 5) {
-                // Removing that ugly stuff about the NTDEC
-                // Good watermark if people ever copy our stuff
-                all_contstructs[i].name -= 5;
-                UNPROTECT((int)all_contstructs[i].name, 4096);
-                memcpy(all_contstructs[i].name, "PUMP", 4); // Replace HACK/FUCK for PUMP
-            }
             if(all_contstructs[i].version == 0) {
                 UNPROTECT((int)all_contstructs[i].ver, 4096);
                 strcpy(all_contstructs[i].ver, all_contstructs[i].cmp_ver);
+            }
+            if(all_contstructs[i].version == 5) {
+                // Alloc and backup the jumps
+                int njumps = all_contstructs[i].njumps;
+                auto_orig_jumps = malloc(njumps*sizeof(void*));
+                for(int k = 0; k < njumps; k++) {
+                    int sjump = all_contstructs[i].sjumps[k];
+                    void* jump = all_contstructs[i].jumps[k];
+                    auto_orig_jumps[k] = malloc(sjump);
+                    memcpy(auto_orig_jumps[k], jump, sjump);
+                    UNPROTECT((int)jump, 4096);
+                }
             }
 
             printf("p1: %p, p2: %p\n", player1_auto, player2_auto);
@@ -737,23 +830,54 @@ void update_autoplay (void) {
 
     int i = auto_chosen;
 
-    if(all_contstructs[i].version == 3) {
+    if(auto_version == 3) {
+        // The object may not be created when libusb was called
+        // so we try to retrieve again
+        // we cannot do the autoplay until the object is created
         if(player1_auto == NULL) {
             try_get_version_3(i);
             if(player1_auto == NULL) return; // Still not ready
         }
 
-        //printf("Auto: %.08x\n", *(int*)player1_auto);
-        //if(auto_1) *(int*)player1_auto |= 0x1000010;
-        //if(auto_1) *(int*)player1_auto = 1;
+        // And just put the variable like normal
     }
 
-    if(all_contstructs[i].version == 4 || all_contstructs[i].version == 5) {
+    if(auto_version == 4) {
+        // Version 4 only puts the variable as a char
         if(auto_1 != -1) (*(char*)player1_auto) = 0x1;
         else (*(char*)player1_auto) = 0x0;
         return;
     }
 
+    if(auto_version == 5) {
+        // Version 5 is for anything below prex1
+        // here, the demo is actually tied to the demo variable (or state)
+        // the only way is to patch the executable directly
+        if(!auto_patched && auto_1 != -1) {
+            // Patch the jumps
+            int njumps = all_contstructs[i].njumps;
+            for(int k = 0; k < njumps; k++) {
+                int sjump = all_contstructs[i].sjumps[k];
+                void* jump = all_contstructs[i].jumps[k];
+                memcpy(jump, all_contstructs[i].rjumps, sjump);
+            }
+            auto_patched = 1;
+        }
+        else if(!auto_patched && auto_1 == -1) {
+            // Reverse the jumps
+            int njumps = all_contstructs[i].njumps;
+            for(int k = 0; k < njumps; k++) {
+                int sjump = all_contstructs[i].sjumps[k];
+                void* jump = all_contstructs[i].jumps[k];
+                memcpy(jump, auto_orig_jumps, sjump);
+            }
+            auto_patched = 0;
+        }
+
+        return;
+    }
+
+    // All other versions...
     if(auto_1 != -1)
         (*player1_auto) = auto_version == 0 ? auto_1: auto_val;
     else
