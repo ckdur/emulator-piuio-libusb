@@ -215,14 +215,14 @@ struct autoplay_construct all_contstructs[] = {
     },
     // PIU OBG, Schaff Compilation new version
     {
-        .version = 5,
+        .version = 0, //5,
         .cmp_name = "it up 3rd (v%d.%02d)",
         .cmp_ver = "May 07 2000",
         .name = (void*)(0x80ffc06 + 5),
         .ver = (void*)(0x80ffc22),
-        .demo_var = (void*)0x81081ca, // orig: data_108bac // TODO: Does not work
-        .p1_a = (void*)0x844e22a, // orig: data_44ec0c
-        .p2_a = (void*)0x844e22a,
+        .demo_var = (void*) 0, //0x81081ca, // orig: data_108bac // TODO: Does not work
+        .p1_a = (void*)0, //0x844e22a, // orig: data_44ec0c
+        .p2_a = (void*)0, //0x844e22a,
         .const_val = 0x1,
         .rjumps = (const char*[]){
             "\x90\x90", 
@@ -234,14 +234,14 @@ struct autoplay_construct all_contstructs[] = {
     },
     // PIU OBG SE, Schaff Compilation new version
     {
-        .version = 5,
+        .version = 0,//5,
         .cmp_name = "IT UP (R4/v%d.%02d)",
         .cmp_ver = "Aug 27 2000",
         .name = (void*)(0x8118e0f + 5),
         .ver = (void*)(0x8118e2b),
-        .demo_var = (void*)0x81234df, // orig: data_12ad28 // TODO: Does not work
-        .p1_a = (void*)0x8459ab3, // orig: data_4612fc
-        .p2_a = (void*)0x8459ab3,
+        .demo_var = (void*)0, //0x81234df, // orig: data_12ad28 // TODO: Does not work
+        .p1_a = (void*)0, //0x8459ab3, // orig: data_4612fc
+        .p2_a = (void*)0, //0x8459ab3,
         .const_val = 0x1,
         .rjumps = (const char*[]){
             "\x90\x90", 
@@ -253,13 +253,13 @@ struct autoplay_construct all_contstructs[] = {
     },
     // PIU The collection, Schaff Compilation new version
     {
-        .version = 5,
+        .version = 0, //5,
         .cmp_name = "IT UP (R%d/v%d.%02d)",
         .cmp_ver = "Nov 14 2000",
         .name = (void*)(0x8119f16 + 5),
         .ver = (void*)(0x8119f32),
-        .demo_var = (void*)0x8124d4e, // orig: data_12b6a4 // TODO: Does not work
-        .p1_a = (void*)0x86df096, // orig: data_6e59ec
+        .demo_var = (void*)0, //0x8124d4e, // orig: data_12b6a4 // TODO: Does not work
+        .p1_a = (void*)0, //0x86df096, // orig: data_6e59ec
         .p2_a = (void*)0,
         .const_val = 0x1,
         .rjumps = (const char*[]){
@@ -272,14 +272,14 @@ struct autoplay_construct all_contstructs[] = {
     },
     // PIU Perfect collection, Schaff Compilation new version
     {
-        .version = 5,
+        .version = 0, //5,
         .cmp_name = "IT UP (R%d/v%d.%02d)",
         .cmp_ver = "Dec 18 2000",
         .name = (void*)(0x8115ec1 + 5),
         .ver = (void*)(0x8115edb),
-        .demo_var = (void*)0x81206d2, // orig: data_12b028 // TODO: Does not work
-        .p1_a = (void*)0x86d6fc2, // orig: data_6e1918
-        .p2_a = (void*)0x86d6fc2,
+        .demo_var = (void*)0, //0x81206d2, // orig: data_12b028 // TODO: Does not work
+        .p1_a = (void*)0, //0x86d6fc2, // orig: data_6e1918
+        .p2_a = (void*)0, //0x86d6fc2,
         .const_val = 0x1,
         .rjumps = (const char*[]){
             "\x90\x90", 
@@ -291,14 +291,14 @@ struct autoplay_construct all_contstructs[] = {
     },
     // PIU Extra, Schaff Compilation new version
     {
-        .version = 5,
+        .version = 0, //5,
         .cmp_name = "IT UP (R4/v%d.%02d)",
         .cmp_ver = "Mar 08 2001",
         .name = (void*)(0x8124cae + 5),
         .ver = (void*)(0x8124cc7),
-        .demo_var = (void*)0x81c4096, // orig: data_1cfb08 // TODO: Does not work
-        .p1_a = (void*)0x82fbe96, // orig: data_307908
-        .p2_a = (void*)0x82fbe96,
+        .demo_var = (void*)0, //0x81c4096, // orig: data_1cfb08 // TODO: Does not work
+        .p1_a = (void*)0, //0x82fbe96, // orig: data_307908
+        .p2_a = (void*)0, //0x82fbe96,
         .const_val = 0x1,
         .rjumps = (const char*[]){
             "\x90\x90", 
@@ -310,14 +310,14 @@ struct autoplay_construct all_contstructs[] = {
     },
     // PIU Premiere 1, Schaff Compilation new version
     {
-        .version = 5,
+        .version =0, // 5,
         .cmp_name = "IT UP (R%d/v%d.%02d)",
         .cmp_ver = "Feb 22 2001",
         .name = (void*)(0x8116eae + 5),
         .ver = (void*)(0x8116ec8),
-        .demo_var = (void*)0x814e65a, // orig: data_157fb0 // TODO: Does not work
-        .p1_a = (void*)0x887d60a, // orig: data_886f60
-        .p2_a = (void*)0x887d60a,
+        .demo_var = (void*)0, //0x814e65a, // orig: data_157fb0 // TODO: Does not work
+        .p1_a = (void*)0, //0x887d60a, // orig: data_886f60
+        .p2_a = (void*)0, //0x887d60a,
         .const_val = 0x1,
         .rjumps = (const char*[]){
             "\x90\x90", 
@@ -329,14 +329,14 @@ struct autoplay_construct all_contstructs[] = {
     },
     // PIU Prex 1, Schaff Compilation new version
     {
-        .version = 5,
+        .version = 0, //5,
         .cmp_name = "IT UP (REV2 / %d)",
         .cmp_ver = "",
         .name = (void*)(0x811e4f7 + 5),
         .ver = (void*)(0x811e4f7 + 5), // TODO: The version is still not patched
-        .demo_var = (void*)0x81293ce, // orig: data_12bd20
-        .p1_a = (void*)0x89c6cd2, // orig: data_9c9624 // NOTE: Does not work
-        .p2_a = (void*)0x89c6cd2, // orig: data_9c9624
+        .demo_var = (void*)0, //0x81293ce, // orig: data_12bd20
+        .p1_a = (void*)0, //0x89c6cd2, // orig: data_9c9624 // NOTE: Does not work
+        .p2_a = (void*)0, //0x89c6cd2, // orig: data_9c9624
         .const_val = 0x1,
         .rjumps = (const char*[]){
             "\x90\x90", 
@@ -587,6 +587,16 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0x9440050,
         .p2_a = (void*)0x9461238,
     },
+    {
+        .version = 0,
+        .cmp_name = "IT UP: FIESTA 2(%s)",
+        .cmp_ver = "V1.61",
+        .name = (void*)(0x81a7a94 + 5),
+        .ver = (void*)0x81a7bdc,
+        .demo_var = (void*)0x9d846e0,
+        .p1_a = (void*)0x9440fd0,
+        .p2_a = (void*)0x94621b8,
+    },
     // PIU PRIME JE v17
     // Now, this one was fucked up by snax, we use a slightly different string
     {
@@ -656,6 +666,27 @@ struct autoplay_construct all_contstructs[] = {
         .demo_var = (void*)0xa0634e4,
         .p1_a = (void*)0x08c2676c,
         .p2_a = (void*)0x08c47950,
+    },
+    {
+        .version = 0,
+        .cmp_name = "IT UP: XX",
+        .cmp_ver = "v2.08.3",
+        .name = (void*)(0x81b81a2 + 5),
+        .ver = (void*)0x81b8404,
+        .demo_var = (void*)0xa0634e4,
+        .p1_a = (void*)0x08c2676c,
+        .p2_a = (void*)0x08c47950,
+    },
+    // PIU Infinity (only for identification)
+    {
+        .version = 0,
+        .cmp_name = "It Up Infinity 1.10.0",
+        .cmp_ver = "1.10.0",
+        .name = (void*)(0x859abff + 5),
+        .ver = (void*)0x859ac13,
+        .demo_var = (void*)0,
+        .p1_a = (void*)0,
+        .p2_a = (void*)0,
     },
 };
 

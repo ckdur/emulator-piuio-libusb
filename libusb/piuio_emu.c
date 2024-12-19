@@ -744,21 +744,22 @@ static int piulxio_helper_process_data_out(uint8_t* data, int size) {
 }
 
 static int piuio_helper_process_data_in(uint8_t* bytes, int size) {
-    usbi_mutex_lock(&piuioemu_poll_mutex);
-    poll_piuio_emu();
-    memset(bytes, 0xFF, size);
-    int ret = min(8, size);
-
     // Request the state of the sensonrs
     int s1 = bytes_l[0] & 0x3;
     int s2 = bytes_l[2] & 0x3;
 
+    usbi_mutex_lock(&piuioemu_poll_mutex);
+    if(s1 == 0) poll_piuio_emu(); // Only poll on s1 == 0
+    memset(bytes, 0xFF, size);
+    int ret = min(8, size);
+
     // Fill accordingly
     bytes_f[s1+0] = bytes[0] = bytes_piuio[s1+0] & bytes_j[0] & bytes_p[0] & bytes_t[0];
-    bytes_f[s2+4] = bytes[2] = bytes_piuio[s2+4] &  bytes_j[2] & bytes_p[2] & bytes_t[2];
+    bytes_f[s2+4] = bytes[2] = bytes_piuio[s2+4] & bytes_j[2] & bytes_p[2] & bytes_t[2];
     bytes_f[8] = bytes[1] = bytes_piuio[8] & bytes_j[1] & bytes_p[1] & bytes_t[1];
     bytes_f[9] = bytes[3] = bytes_piuio[9] & bytes_j[3] & bytes_p[3] & bytes_t[3];
 
+    // Only mutex on s1 == 0
     usbi_mutex_unlock(&piuioemu_poll_mutex);
     return ret;
 }
@@ -776,7 +777,7 @@ static int piuio_helper_process_data_out(uint8_t* data, int size) {
 
 static int piuiobutton_helper_process_data(uint8_t* bytes, int size) {
     usbi_mutex_lock(&piuioemu_poll_mutex);
-    poll_piuio_emu();
+    //poll_piuio_emu();
     int ret = min(16, size);
     memset(bytes, 0xFF, size);
     bytes_fb[0] = bytes[0] = bytes_piuiob[0] & bytes_jb[0] & bytes_pb[0] & bytes_tb[0];
