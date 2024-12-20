@@ -749,7 +749,9 @@ static int piuio_helper_process_data_in(uint8_t* bytes, int size) {
     int s2 = bytes_l[2] & 0x3;
 
     usbi_mutex_lock(&piuioemu_poll_mutex);
-    if(s1 == 0) poll_piuio_emu(); // Only poll on s1 == 0
+    static int calls = 0;
+    calls = (calls+1) % 4;
+    if(calls == 0) poll_piuio_emu(); // Only poll on s1 == 0
     memset(bytes, 0xFF, size);
     int ret = min(8, size);
 

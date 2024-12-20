@@ -818,7 +818,7 @@ void check_autoplay(void) {
                 if(strlen(all_contstructs[i].cmp_ver) != 0) {
                     all_contstructs[i].ver -= 20;
                     UNPROTECT((int)all_contstructs[i].ver, 4096);
-                    memcpy(all_contstructs[i].ver+10, "ANDAMIRO", 8); // Replace NTDEC/FMG for ANDAMIRO
+                    memcpy(all_contstructs[i].ver+10, "ANDAMIRO CO. ", 8+5); // Replace NTDEC/FMG for ANDAMIRO
                 }
             }
             if(all_contstructs[i].version == 0) {
