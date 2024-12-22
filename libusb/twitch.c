@@ -33,12 +33,12 @@ char buffer[256];
 struct sockaddr_in serv_addr, cli_addr;
 int n;
 
-static void check_comms_capacity(int size) {
+/*static void check_comms_capacity(int size) {
   if(size < cap_comms) {
     cap_comms = (size/128 + 1) * 128;
     comms = (struct command_spec*)realloc(comms, sizeof(struct command_spec)*cap_comms);
   }
-}
+}*/
 
 static void error(const char *msg)
 {
@@ -229,7 +229,7 @@ static double GetBeat2(unsigned long t, double BPM)
   return (double)(t) / 60000000.0 * BPM ;
 }
 
-static unsigned long GetTime(double b)
+/*static unsigned long GetTime(double b)
 {
   if(b < 0) return 0;
   return (unsigned long) ((b) * 60000000.0 / fBPM );
@@ -239,7 +239,7 @@ static unsigned long GetTime2(double b, double BPM)
 {
   if(b < 0) return 0;
   return (unsigned long) ((b) * 60000000.0 / BPM );
-}
+}*/
 
 double GetCurrentBeat(void)
 {
@@ -277,34 +277,11 @@ int HandleBuffer(int deploy_full) {
       }
     }
     else {
-      // It found the \n, convert it to \0 and do whatever
+      // It found the \n, convert it to \0 and do the parsing
       (*f) = 0;
       //printf("Command: %s\n", bufaux);
       char* f2 = bufaux;
       char* fs = bufaux;
-      char first = 1;
-      char* p1s = malloc(1);
-      char* p2s = malloc(1);
-      int pscount = 1;
-      p1s[0] = 0xFF;
-      p2s[0] = 0xFF;
-      struct command_spec spec;
-      spec.p1 = 0xFF;
-      spec.p2 = 0xFF;
-      spec.s1 = 0xFF;
-      spec.s2 = 0xFF;
-      spec.isHold = 0;
-      // To determinate the beat, we need to get the current time
-      // add the delay time
-      // and also assume for now that we are going to aligh
-      // at 1/4 of the beat
-      // So, the beat has to be a multiple of 1/4
-      unsigned long t = GetCurrentTime() + delay;
-      unsigned long addTime = 0;
-      unsigned long addTimeHold = 0;
-      char notadd = 0;
-      double defAddBeat = 0.25;
-      
       // Now, analyze the command
       
       while(1) {
@@ -319,256 +296,57 @@ int HandleBuffer(int deploy_full) {
         // Assume that they are already filtered
         //printf("  Argument: %s\n", fs);
         
-        // If this is the first one, then try
-        if(first) {
-          // Common commands
-          
-          if(strcmp(fs, "delay")  == 0) {
-            notadd = 1;
-            char* conv = f2+1;
-            long k;
-            int arg = sscanf(conv, "%ld", &k);
-            if(arg == 1) {
-              if(((long)delay + k*1000) <= 0) delay = 0;
-              delay = (unsigned long)((long)delay + k*1000);
-              if(delay > 30000000) delay = 30000000;
-            }
-            break;
+        // Common commands
+        if(strcmp(fs, "delay")  == 0) {
+          char* conv = f2+1;
+          long k;
+          int arg = sscanf(conv, "%ld", &k);
+          if(arg == 1) {
+            if(((long)delay + k*1000) <= 0) delay = 0;
+            delay = (unsigned long)((long)delay + k*1000);
+            if(delay > 30000000) delay = 30000000;
           }
-
-          if(strcmp(fs, "req")  == 0) {
-            notadd = 1;
-            char* conv = f2+1;
-            int k;
-            int arg = sscanf(conv, "%d", &k);
-            if(arg == 1 && k < STATE_REQUEST_END) {
-              req = k;
-            }
-            break;
-          }
-
-          if(strcmp(fs, "d") == 0) {
-            uint32_t st;
-            char* conv = f2+1;
-            int arg = sscanf(conv, "%x", &st);
-            if(arg == 1) {
-              uint32_t* pt_g = (uint32_t*)bytes_g;
-              (*pt_g) = st;
-            }
-            break;
-          }
-
-          if(strcmp(fs, "b") == 0) {
-            uint32_t st;
-            char* conv = f2+1;
-            int arg = sscanf(conv, "%x", &st);
-            if(arg == 1) {
-              uint16_t* pt_gb = (uint16_t*)bytes_gb;
-              (*pt_gb) = (uint16_t)st;
-            }
-            break;
-          }
-        
-          if(strcmp(fs, "coin") == 0) {
-            spec.s1 &= ~0x4;
-          }
-          if(strcmp(fs, "coin2") == 0) {
-            spec.s2 &= ~0x4;
-          }
-        
-          if(strcmp(fs, "service") == 0) {
-            spec.s1 &= ~0x2;
-          }
-          if(strcmp(fs, "test") == 0) {
-            spec.s1 &= ~0x40;
-          }
-          if(strcmp(fs, "clear") == 0) {
-            spec.s1 &= ~0x80;
-          }
-
-          if(strcmp(fs, "p1upleft") == 0) {
-            spec.p1 &= ~0x1;
-          }
-          if(strcmp(fs, "p1upright") == 0) {
-            spec.p1 &= ~0x2;
-          }
-          if(strcmp(fs, "p1center") == 0) {
-            spec.p1 &= ~0x4;
-          }
-          if(strcmp(fs, "p1downleft") == 0) {
-            spec.p1 &= ~0x8;
-          }
-          if(strcmp(fs, "p1downright") == 0) {
-            spec.p1 &= ~0x10;
-          }
-
-          if(strcmp(fs, "p2upleft") == 0) {
-            spec.p2 &= ~0x1;
-          }
-          if(strcmp(fs, "p2upright") == 0) {
-            spec.p2 &= ~0x2;
-          }
-          if(strcmp(fs, "p2center") == 0) {
-            spec.p2 &= ~0x4;
-          }
-          if(strcmp(fs, "p2downleft") == 0) {
-            spec.p2 &= ~0x8;
-          }
-          if(strcmp(fs, "p2downright") == 0) {
-            spec.p2 &= ~0x10;
-          }
-          int len = strlen(fs);
-          for(int i = 0; i < len; i++) {
-            if(fs[i] == 'q') {
-              p1s[pscount-1] &= ~0x1;
-            }
-            if(fs[i] == 'e') {
-              p1s[pscount-1] &= ~0x2;
-            }
-            if(fs[i] == 's') {
-              p1s[pscount-1] &= ~0x4;
-            }
-            if(fs[i] == 'z') {
-              p1s[pscount-1] &= ~0x8;
-            }
-            if(fs[i] == 'c') {
-              p1s[pscount-1] &= ~0x10;
-            }
-
-            if(fs[i] == 'r' || fs[i] == '7') {
-              p2s[pscount-1] &= ~0x1;
-            }
-            if(fs[i] == 'y' || fs[i] == '9') {
-              p2s[pscount-1] &= ~0x2;
-            }
-            if(fs[i] == 'g' || fs[i] == '5') {
-              p2s[pscount-1] &= ~0x4;
-            }
-            if(fs[i] == 'v' || fs[i] == '1') {
-              p2s[pscount-1] &= ~0x8;
-            }
-            if(fs[i] == 'n' || fs[i] == '3') {
-              p2s[pscount-1] &= ~0x10;
-            }
-
-            if(fs[i] == '-') {
-              pscount++;
-              p1s = realloc(p1s, pscount);
-              p2s = realloc(p1s, pscount);
-              p1s[pscount-1] = 0xFF;
-              p2s[pscount-1] = 0xFF;
-            }
-          }
+          break;
         }
-        
-        else { 
-          // Search for the rest
-          
-          // x/x
-          if('0' <= fs[0] && fs[0] <= '9' &&
-             '0' <= fs[2] && fs[2] <= '9' &&
-             fs[1] == '/') {
 
-            // Get the current beat
-            double beat = GetBeat(t);
-            // Get how much do we need to add
-            double addBeat = (double)(fs[0] - '0')/(double)(fs[2] - '0');
-            // Also get the align
-            // The 2 is just for forcing 1/4
-            double beatAlign = 0.25;
-            if(fs[2] == '2') beatAlign = 0.25;
-            else beatAlign = 1.0/(double)(fs[2] - '0');
-
-            // Finally, get the time this is supposed to press
-            double nextalign = ceil(beat / beatAlign) * beatAlign;
-            double finalbeat = nextalign + addBeat - beat;
-            
-            addTime = GetTime(finalbeat) + t;
-            defAddBeat = addBeat;
+        if(strcmp(fs, "req")  == 0) {
+          char* conv = f2+1;
+          int k;
+          int arg = sscanf(conv, "%d", &k);
+          if(arg == 1 && k < STATE_REQUEST_END) {
+            req = k;
           }
-          
-          // hxxx.xxx
-          else if(fs[0] == 'h') {
-            unsigned long holdtime = 0;
-            int arg = 0;
-            if(fs[1] == 'b') {
-              // Time is in beats
-              double beat = 0.0;
-              arg = sscanf(fs+2, "%lg", &beat);
-              if(arg == 1) {
-                holdtime = GetTime2(beat, fBPM);
-              }
-            }
-            else {
-              double time_in_seconds = 0.0;
-              arg = sscanf(fs+1, "%lg", &time_in_seconds);
-              if(arg == 1) {
-                holdtime = (unsigned long)(time_in_seconds * 1000000.0);
-              }
-            }
-            if(arg == 1) {
-              addTimeHold += holdtime;
-              spec.isHold = 1;
-            }
-          }
-          
-          // xxx.xxx
-          else {
-            unsigned long steptime = 0;
-            int arg = 0;
-            if(fs[0] == 'b') {
-              // Time is in beats
-              double beat = 0.0;
-              arg = sscanf(fs+1, "%lg", &beat);
-              if(arg == 1) {
-                steptime = GetTime2(beat, fBPM);
-                defAddBeat = beat;
-              }
-            }
-            else {
-              double time_in_seconds = 0.0;
-              arg = sscanf(fs, "%lg", &time_in_seconds);
-              if(arg == 1) {
-                steptime = (unsigned long)(time_in_seconds * 1000000.0);
-              }
-            }
-            if(arg == 1) {
-              addTime = steptime;
-            }
-          }
+          break;
         }
-        
-        // Flag as this is not the first one
-        first = 0;
+
+        if(strcmp(fs, "d") == 0) {
+          uint32_t st;
+          char* conv = f2+1;
+          int arg = sscanf(conv, "%x", &st);
+          if(arg == 1) {
+            uint32_t* pt_g = (uint32_t*)bytes_g;
+            (*pt_g) = st;
+          }
+          break;
+        }
+
+        if(strcmp(fs, "b") == 0) {
+          uint32_t st;
+          char* conv = f2+1;
+          int arg = sscanf(conv, "%x", &st);
+          if(arg == 1) {
+            uint16_t* pt_gb = (uint16_t*)bytes_gb;
+            (*pt_gb) = (uint16_t)st;
+          }
+          break;
+        }
         
         // Try to put the search pointer afterwards;
         f2++;
         fs = f2;
         if(f2 >= f) break; // Nothing more to see here
       }
-      
-      // Calculate the beats
-      // We add 1 because adding the if(fmod(beat, beatAlign) == 0.0) is almost always true
-      spec.time = t + addTime;
-      spec.timeEnd = spec.time + addTimeHold;
-      
-      // if this is true, we add the command
-      if(strcmp(bufaux, "nothing") != 0 && !notadd && pscount > 0) {
-        for(int k = 0; k < pscount; k++) {
-          spec.p1 = p1s[k];
-          spec.p2 = p2s[k];
-          
-          check_comms_capacity(scomms + 1);
-          memcpy(&comms[scomms], &spec, sizeof(struct command_spec));
-          scomms++;
-          
-          printf("Added command at %ld (%d:%d): %.2x %.2x %ld %ld (%d)\n", 
-            t, scomms, cap_comms, spec.p1, spec.p2, spec.time, spec.timeEnd, spec.isHold);
-          
-          spec.time += GetTime2(defAddBeat, fBPM);
-        }
-      }
-      
+
       bufaux = f + 1;
       if(bufaux >= bufend) {
         // Just drop it, nothing else to see here
@@ -576,8 +354,6 @@ int HandleBuffer(int deploy_full) {
         buf[siz] = 0;
         break;
       }
-      free(p1s);
-      free(p2s);
     }
   }
   //printf("Current state of the buf: %s\n", buf);
