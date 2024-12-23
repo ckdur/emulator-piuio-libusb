@@ -113,13 +113,13 @@ void poll_piuio(void){
             // The LXIO can also pull states of the piuiob
             bytes_piuiob[0] = 0xFF;
             if((~bytes_piuio[10]) & 0x03) bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
-            if((~bytes_piuio[10]) & 0x04) bytes_piuiob[0] &= 0xFD; // Left on DL
-            if((~bytes_piuio[10]) & 0x08) bytes_piuiob[0] &= 0xFB; // Right on DR
-            if((~bytes_piuio[10]) & 0x10) bytes_piuiob[0] &= 0xF7; // Green on Center
+            if((~bytes_piuio[10]) & 0x04) bytes_piuiob[0] &= 0xF7; // Green on Center
+            if((~bytes_piuio[10]) & 0x08) bytes_piuiob[0] &= 0xFD; // Left on DL
+            if((~bytes_piuio[10]) & 0x10) bytes_piuiob[0] &= 0xFB; // Right on DR
             if((~bytes_piuio[11]) & 0x03) bytes_piuiob[0] &= 0xEF; // Red button on either UL/UR
-            if((~bytes_piuio[11]) & 0x04) bytes_piuiob[0] &= 0xDF; // Left on DL
-            if((~bytes_piuio[11]) & 0x08) bytes_piuiob[0] &= 0xBF; // Right on DR
-            if((~bytes_piuio[11]) & 0x10) bytes_piuiob[0] &= 0x7F; // Green on Center
+            if((~bytes_piuio[11]) & 0x04) bytes_piuiob[0] &= 0x7F; // Green on Center
+            if((~bytes_piuio[11]) & 0x08) bytes_piuiob[0] &= 0xDF; // Left on DL
+            if((~bytes_piuio[11]) & 0x10) bytes_piuiob[0] &= 0xBF; // Right on DR
             bytes_piuiob[1] = 0xFF;
         }
         
@@ -153,13 +153,13 @@ void poll_piuio(void){
                 bytes_piuiob[0] = 0xFF;
                 for (i = 0; i < 4; i++) {
                     if((~bytes_piuio[i+0]) & 0x03) bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
-                    if((~bytes_piuio[i+0]) & 0x04) bytes_piuiob[0] &= 0xFD; // Left on DL
-                    if((~bytes_piuio[i+0]) & 0x08) bytes_piuiob[0] &= 0xFB; // Right on DR
-                    if((~bytes_piuio[i+0]) & 0x10) bytes_piuiob[0] &= 0xF7; // Green on Center
+                    if((~bytes_piuio[i+0]) & 0x04) bytes_piuiob[0] &= 0xF7; // Green on Center
+                    if((~bytes_piuio[i+0]) & 0x08) bytes_piuiob[0] &= 0xFD; // Left on DL
+                    if((~bytes_piuio[i+0]) & 0x10) bytes_piuiob[0] &= 0xFB; // Right on DR
                     if((~bytes_piuio[i+4]) & 0x03) bytes_piuiob[0] &= 0xEF; // Red button on either UL/UR
-                    if((~bytes_piuio[i+4]) & 0x04) bytes_piuiob[0] &= 0xDF; // Left on DL
-                    if((~bytes_piuio[i+4]) & 0x08) bytes_piuiob[0] &= 0xBF; // Right on DR
-                    if((~bytes_piuio[i+4]) & 0x10) bytes_piuiob[0] &= 0x7F; // Green on Center
+                    if((~bytes_piuio[i+4]) & 0x04) bytes_piuiob[0] &= 0x7F; // Green on Center
+                    if((~bytes_piuio[i+4]) & 0x08) bytes_piuiob[0] &= 0xDF; // Left on DL
+                    if((~bytes_piuio[i+4]) & 0x10) bytes_piuiob[0] &= 0xBF; // Right on DR
                 }
                 
                 bytes_piuiob[1] = 0xFF;
