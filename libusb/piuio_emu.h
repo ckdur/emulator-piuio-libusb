@@ -47,4 +47,9 @@ extern unsigned char bytes_l[4];
 extern unsigned char bytes_f[16];
 extern int piuioemu_mode;
 
+#define WITH_PIULXIO 0x1
+#define WITH_PIUIO 0x2
+#define WITH_PIUIOBUTTON 0x4
+#define EMU_PIUIO_BUTTON 0x8
+
 #endif // PIUIO_EMU_H

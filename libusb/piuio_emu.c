@@ -341,10 +341,6 @@ unsigned char bytes_fb[2] = {0xFF, 0xFF};
 usbi_mutex_t piuioemu_mutex;
 usbi_mutex_t piuioemu_poll_mutex;
 Queue* piuioemu_queue;
-#define WITH_PIULXIO 0x1
-#define WITH_PIUIO 0x2
-#define WITH_PIUIOBUTTON 0x4
-#define EMU_PIUIO_BUTTON 0x8
 int piuioemu_mode = WITH_PIUIO | WITH_PIUIOBUTTON;
 static void init_piuio_emu(void) {
     usbi_mutex_init(&piuioemu_mutex);
