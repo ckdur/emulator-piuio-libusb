@@ -110,6 +110,17 @@ void poll_piuio(void){
             true_libusb_interrupt_transfer(dev_handle,
                 0x80 | PIULXIO_ENDPOINT_IN, bytes_piuio, 16,
                 &transferred, 1000);
+            // The LXIO can also pull states of the piuiob
+            bytes_piuiob[0] = 0xFF;
+            if((~bytes_piuio[10]) & 0x03) bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
+            if((~bytes_piuio[10]) & 0x04) bytes_piuiob[0] &= 0xFD; // Left on DL
+            if((~bytes_piuio[10]) & 0x08) bytes_piuiob[0] &= 0xFB; // Right on DR
+            if((~bytes_piuio[10]) & 0x10) bytes_piuiob[0] &= 0xF7; // Green on Center
+            if((~bytes_piuio[11]) & 0x03) bytes_piuiob[0] &= 0xEF; // Red button on either UL/UR
+            if((~bytes_piuio[11]) & 0x04) bytes_piuiob[0] &= 0xDF; // Left on DL
+            if((~bytes_piuio[11]) & 0x08) bytes_piuiob[0] &= 0xBF; // Right on DR
+            if((~bytes_piuio[11]) & 0x10) bytes_piuiob[0] &= 0x7F; // Green on Center
+            bytes_piuiob[1] = 0xFF;
         }
         
         if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
@@ -136,6 +147,22 @@ void poll_piuio(void){
                 bytes_piuio[i+4] = datin[2];
                 bytes_piuio[8] = datin[1];
                 bytes_piuio[9] = datin[3];
+            }
+            if(piuioemu_mode & EMU_PIUIO_BUTTON) {
+                // Emulate the piuio button with the regular pad
+                bytes_piuiob[0] = 0xFF;
+                for (i = 0; i < 4; i++) {
+                    if((~bytes_piuio[i+0]) & 0x03) bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
+                    if((~bytes_piuio[i+0]) & 0x04) bytes_piuiob[0] &= 0xFD; // Left on DL
+                    if((~bytes_piuio[i+0]) & 0x08) bytes_piuiob[0] &= 0xFB; // Right on DR
+                    if((~bytes_piuio[i+0]) & 0x10) bytes_piuiob[0] &= 0xF7; // Green on Center
+                    if((~bytes_piuio[i+4]) & 0x03) bytes_piuiob[0] &= 0xEF; // Red button on either UL/UR
+                    if((~bytes_piuio[i+4]) & 0x04) bytes_piuiob[0] &= 0xDF; // Left on DL
+                    if((~bytes_piuio[i+4]) & 0x08) bytes_piuiob[0] &= 0xBF; // Right on DR
+                    if((~bytes_piuio[i+4]) & 0x10) bytes_piuiob[0] &= 0x7F; // Green on Center
+                }
+                
+                bytes_piuiob[1] = 0xFF;
             }
         }
         

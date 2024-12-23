@@ -45,5 +45,6 @@
 
 extern unsigned char bytes_l[4];
 extern unsigned char bytes_f[16];
+extern int piuioemu_mode;
 
 #endif // PIUIO_EMU_H

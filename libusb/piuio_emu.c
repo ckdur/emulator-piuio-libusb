@@ -344,6 +344,7 @@ Queue* piuioemu_queue;
 #define WITH_PIULXIO 0x1
 #define WITH_PIUIO 0x2
 #define WITH_PIUIOBUTTON 0x4
+#define EMU_PIUIO_BUTTON 0x8
 int piuioemu_mode = WITH_PIUIO | WITH_PIUIOBUTTON;
 static void init_piuio_emu(void) {
     usbi_mutex_init(&piuioemu_mutex);
@@ -384,6 +385,16 @@ static void init_piuio_emu(void) {
         }
         else {
             piuioemu_mode &= ~WITH_PIUIOBUTTON;
+        }
+    }
+
+    if ((val = getenv("_PIUIOEMU_EMU_PIUIO_BUTTON"))) {
+        r = strtol(val, NULL, 10);
+        if(r) {
+            piuioemu_mode |= EMU_PIUIO_BUTTON;
+        }
+        else {
+            piuioemu_mode &= ~EMU_PIUIO_BUTTON;
         }
     }
 }
