@@ -406,7 +406,7 @@ struct autoplay_construct all_contstructs[] = {
         .p2_a = (void*)0x8a53829,
         .const_val = 0x1,
     },
-    // PIU Exceed 1, Dec  7 2004
+    // PIU Exceed 1, Mini
     {
         .version = 3,
         .cmp_name = "IT UP - THE EXCEED",
@@ -439,6 +439,27 @@ struct autoplay_construct all_contstructs[] = {
         .p2_a = (void*)0x4abf1,
         .proc_manager = (void*)0x80bed54,
         .procmanager_GetProc = (void*)0x8061c62,
+        .proc_to_manager_offset = (void*)0xfffcf008, // Got it from the virtual table
+        .const_val = 1,
+    },
+    // PIU Exceed 2, Aug 18 2005
+    /*      
+  if ((*(char *)(param_1 + 0x4abf1) != '\0') || ((m_bDemo & 0x1000000) != 0)) {
+    FUN_0805ebee(param_1,0);
+    FUN_0805ebee();
+  }
+    */
+    {
+        .version = 3,
+        .cmp_name = "IT UP - THE EXCEED 2",
+        .cmp_ver = "Aug 18 2005",
+        .name = (void*)(0x80781ba + 5),
+        .ver = (void*)0x807b721,
+        .demo_var = (void*)0x80bae14, // Actually, not used
+        .p1_a = (void*)0x4abf1, // 1 and 2 are the same
+        .p2_a = (void*)0x4abf1,
+        .proc_manager = (void*)0x80bae90,
+        .procmanager_GetProc = (void*)0x8060bde,
         .proc_to_manager_offset = (void*)0xfffcf008, // Got it from the virtual table
         .const_val = 1,
     },
