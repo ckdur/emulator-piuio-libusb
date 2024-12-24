@@ -338,10 +338,16 @@ unsigned char bytes_f[16] = { // As LX
     0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
 unsigned char bytes_fb[2] = {0xFF, 0xFF};
 
+#include <pthread.h>
 usbi_mutex_t piuioemu_mutex;
 usbi_mutex_t piuioemu_poll_mutex;
 Queue* piuioemu_queue;
+int g_init = 0;
 int piuioemu_mode = WITH_PIUIO | WITH_PIUIOBUTTON;
+pthread_t thread_poll;
+void* thread_poll_func(void* a);
+int thread_poll_done = 0;
+
 static void init_piuio_emu(void) {
     usbi_mutex_init(&piuioemu_mutex);
     usbi_mutex_init(&piuioemu_poll_mutex);
@@ -393,41 +399,53 @@ static void init_piuio_emu(void) {
             piuioemu_mode &= ~EMU_PIUIO_BUTTON;
         }
     }
+
+    //finish_piuio();
+    init_piuio();
+
+    thread_poll_done = 0;
+    pthread_create(&thread_poll, NULL, thread_poll_func, NULL);
 }
 
 time_t start_time = 0;
 bool condition_met = false;
-static void poll_piuio_emu(void) {
-    poll_keyboards();
-    poll_piuio();
-    KeyHandler_Twitch_Poll();
-    update_autoplay();
+void* thread_poll_func(void* a) {
+    while(!thread_poll_done) {
+        poll_keyboards();
+        poll_piuio();
+        KeyHandler_Twitch_Poll();
+        update_autoplay();
 
-    // Detect if service and test has been held 5 seconds
-    // Test is bit 9, service is bit 14
-    //    bit 9                    bit 14
-    if(!(bytes_f[8] & 0x02)/* && !(bytes_f[1] & 0x40)*/) {
-        if(!condition_met) {
-            // Start timing if condition is met for the first time
-            start_time = time(NULL);
-            condition_met = true;
-            printf("TEST hold ...\n");
+        // Detect if service and test has been held 5 seconds
+        // Test is bit 9, service is bit 14
+        //    bit 9                    bit 14
+        if(!(bytes_f[8] & 0x02)/* && !(bytes_f[1] & 0x40)*/) {
+            if(!condition_met) {
+                // Start timing if condition is met for the first time
+                start_time = time(NULL);
+                condition_met = true;
+                printf("TEST hold ...\n");
+            }
+            else if (time(NULL) - start_time >= 5) {
+                // If condition is continuously met for 5 seconds, exit the loop
+                thread_poll_done = 1;
+                printf("TEST held 5 seconds. Exiting ...\n");
+                exit(0);
+                abort();
+                *((int*)NULL) = 0; // crash it
+                return;
+            }
         }
-        else if (time(NULL) - start_time >= 5) {
-            // If condition is continuously met for 5 seconds, exit the loop
-            printf("TEST held 5 seconds. Exiting ...\n");
-            exit(0);
-            abort();
-            *((int*)NULL) = 0; // crash it
-            return;
+        else {
+            condition_met = false;
         }
-    }
-    else {
-        condition_met = false;
     }
 }
 
-int g_init = 0;
+static void poll_piuio_emu(void) {
+    // Nothing
+}
+
 int API_EXPORTED libusb_init_context(libusb_context **ctx, const struct libusb_init_option options[], int num_options) {
     printf("piuio_emu: libusb_init_context %d\n", __LINE__);
     int r = true_libusb_init_context(ctx, options, num_options);
@@ -436,8 +454,6 @@ int API_EXPORTED libusb_init_context(libusb_context **ctx, const struct libusb_i
         init_piuio_emu();
         g_init = 1;
     }
-    finish_piuio();
-    init_piuio();
     
     return r;
 }
@@ -756,9 +772,10 @@ static int piuio_helper_process_data_in(uint8_t* bytes, int size) {
     int s2 = bytes_l[2] & 0x3;
 
     usbi_mutex_lock(&piuioemu_poll_mutex);
-    static int calls = 0;
-    calls = (calls+1) % 4;
-    if(calls == 0) poll_piuio_emu(); // Only poll on s1 == 0
+    //static int calls = 0;
+    //calls = (calls+1) % 4;
+    //if(calls == 0) // Only poll on s1 == 0
+    poll_piuio_emu(); 
     memset(bytes, 0xFF, size);
     int ret = min(8, size);
 
@@ -1189,6 +1206,9 @@ int API_EXPORTED libusb_release_interface(libusb_device_handle *dev_handle,
 
 void API_EXPORTED libusb_exit(libusb_context *ctx) {
     printf("piuio_emu: libusb_exit %d\n", __LINE__);
+    thread_poll_done = 1;
+    pthread_join(thread_poll, NULL);
+    
     finish_piuio();
     KeyHandler_Twitch_Exit();
 }

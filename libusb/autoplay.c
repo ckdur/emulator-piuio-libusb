@@ -534,6 +534,17 @@ struct autoplay_construct all_contstructs[] = {
         .p2_a = (void*)0x9e3c8c0,
         .const_val = 1,
     },
+    // PIU NX2 CN
+    {
+        .version = 1,
+        .cmp_name = "IT UP: NXC",
+        .cmp_ver = "(BUILD:1.56%s)",
+        .name = (void*)(0x80f9bdc + 5),
+        .ver = (void*)0x80f9bec,
+        .demo_var = (void*)0x81c5f41,
+        .p1_a = (void*)0x9e34d2c,
+        .p2_a = (void*)0x9e37460,
+    },
     // PIU NXA v10
     /*
     iVar19 = (&DAT_09e96580)[iVar18 * 0xd44];
@@ -553,6 +564,17 @@ struct autoplay_construct all_contstructs[] = {
         .demo_var = (void*)0x81edd01,
         .p1_a = (void*)0x9e96580,
         .p2_a = (void*)0x9e99a90,
+    },
+    // PIU NXA CN
+    {
+        .version = 0,
+        .cmp_name = "IT UP: NXAC",
+        .cmp_ver = "(BUILD:1.13%s)",
+        .name = (void*)(0x8120b8a + 5),
+        .ver = (void*)0x8120b9b,
+        .demo_var = (void*)0x81f1e81,
+        .p1_a = (void*)0x9e9a6fc,
+        .p2_a = (void*)0x9e9dc0c,
     },
     // PIU Fiesta v20
     /*
