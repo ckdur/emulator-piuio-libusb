@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #define _USE_GNU
 #include "autoplay.h"
+#include "piuio_emu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
