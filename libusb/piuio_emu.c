@@ -282,7 +282,7 @@ static void submit_to_queue(Queue* queue, struct libusb_transfer * data) {
 // Function to remove a specific item from the queue
 static void remove_from_queue(Queue* queue, struct libusb_transfer * data) {
     if (queue->front == NULL) {
-        printf("Queue is empty, cannot remove.\n");
+        PRINTF("Queue is empty, cannot remove.\n");
         return;
     }
 
@@ -304,7 +304,7 @@ static void remove_from_queue(Queue* queue, struct libusb_transfer * data) {
 
     // If the data was not found
     if (temp == NULL) {
-        printf("Item %p not found in the queue.\n", data);
+        PRINTF("Item %p not found in the queue.\n", data);
         return;
     }
 
@@ -424,12 +424,12 @@ void* thread_poll_func(void* a) {
                 // Start timing if condition is met for the first time
                 start_time = time(NULL);
                 condition_met = true;
-                printf("TEST hold ...\n");
+                PRINTF("TEST hold ...\n");
             }
             else if (time(NULL) - start_time >= 5) {
                 // If condition is continuously met for 5 seconds, exit the loop
                 thread_poll_done = 1;
-                printf("TEST held 5 seconds. Exiting ...\n");
+                PRINTF("TEST held 5 seconds. Exiting ...\n");
                 exit(0);
                 abort();
                 *((int*)NULL) = 0; // crash it
@@ -447,7 +447,7 @@ static void poll_piuio_emu(void) {
 }
 
 int API_EXPORTED libusb_init_context(libusb_context **ctx, const struct libusb_init_option options[], int num_options) {
-    printf("piuio_emu: libusb_init_context %d\n", __LINE__);
+    PRINTF("piuio_emu: libusb_init_context %d\n", __LINE__);
     int r = true_libusb_init_context(ctx, options, num_options);
     if(!g_init) {
         if(ctx) piuio_ctx = *ctx;
@@ -461,7 +461,7 @@ int API_EXPORTED libusb_init_context(libusb_context **ctx, const struct libusb_i
 ssize_t API_EXPORTED libusb_get_device_list(libusb_context *ctx,
 	libusb_device ***list)
 {
-    printf("piuio_emu: libusb_get_device_list %d\n", __LINE__);
+    PRINTF("piuio_emu: libusb_get_device_list %d\n", __LINE__);
     // Call the original one
     ssize_t len = 0; //= true_libusb_get_device_list(ctx, list);
 
@@ -474,7 +474,7 @@ ssize_t API_EXPORTED libusb_get_device_list(libusb_context *ctx,
 
     // Add three new devices
     if(piuioemu_mode & WITH_PIULXIO) {
-        printf("  Adding PIULXIO\n");
+        PRINTF("  Adding PIULXIO\n");
         struct libusb_device *dev = malloc(sizeof(struct libusb_device));
         memset(dev, 0, sizeof(struct libusb_device));
         dev->device_descriptor.idProduct = PIULXIO_PRODUCT_ID;
@@ -484,7 +484,7 @@ ssize_t API_EXPORTED libusb_get_device_list(libusb_context *ctx,
         p++;
     }
     if(piuioemu_mode & WITH_PIUIO) {
-        printf("  Adding PIUIO\n");
+        PRINTF("  Adding PIUIO\n");
         struct libusb_device *dev = malloc(sizeof(struct libusb_device));
         memset(dev, 0, sizeof(struct libusb_device));
         dev->device_descriptor.idProduct = PIUIO_PRODUCT_ID;
@@ -494,7 +494,7 @@ ssize_t API_EXPORTED libusb_get_device_list(libusb_context *ctx,
         p++;
     }
     if(piuioemu_mode & WITH_PIUIOBUTTON) {
-        printf("  Adding PIUIOBUTTON\n");
+        PRINTF("  Adding PIUIOBUTTON\n");
         struct libusb_device *dev = malloc(sizeof(struct libusb_device));
         memset(dev, 0, sizeof(struct libusb_device));
         dev->device_descriptor.idProduct = PIUIOBUTTON_PRODUCT_ID;
@@ -560,11 +560,11 @@ int API_EXPORTED libusb_get_device_descriptor(libusb_device *dev,
 int API_EXPORTED libusb_get_config_descriptor(libusb_device *dev,
 	uint8_t config_index, struct libusb_config_descriptor **config)
 {
-    printf("piuio_emu: libusb_get_config_descriptor %d\n", __LINE__);
+    PRINTF("piuio_emu: libusb_get_config_descriptor %d\n", __LINE__);
     
     if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
-        printf("  Requested for PIULXIO\n");
+        PRINTF("  Requested for PIULXIO\n");
         *config = malloc(sizeof(struct libusb_config_descriptor));
         memset(*config, 0, sizeof(struct libusb_config_descriptor));
         memcpy(*config, &piulxio_config_desc, sizeof(struct libusb_config_descriptor));
@@ -574,7 +574,7 @@ int API_EXPORTED libusb_get_config_descriptor(libusb_device *dev,
     
     if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIUIO_VENDOR_ID) {
-        printf("  Requested for PIUIO\n");
+        PRINTF("  Requested for PIUIO\n");
         *config = malloc(sizeof(struct libusb_config_descriptor));
         memset(*config, 0, sizeof(struct libusb_config_descriptor));
         memcpy(*config, &piuio_config_desc, sizeof(struct libusb_config_descriptor));
@@ -584,7 +584,7 @@ int API_EXPORTED libusb_get_config_descriptor(libusb_device *dev,
     
     if(dev->device_descriptor.idProduct == PIUIOBUTTON_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIUIOBUTTON_VENDOR_ID) {
-        printf("  Requested for PIUIOBUTTON\n");
+        PRINTF("  Requested for PIUIOBUTTON\n");
         *config = malloc(sizeof(struct libusb_config_descriptor));
         memset(*config, 0, sizeof(struct libusb_config_descriptor));
         memcpy(*config, &piuiobutton_config_desc, sizeof(struct libusb_config_descriptor));
@@ -597,11 +597,11 @@ int API_EXPORTED libusb_get_config_descriptor(libusb_device *dev,
 
 int API_EXPORTED libusb_get_active_config_descriptor(libusb_device *dev,
 	struct libusb_config_descriptor **config) {
-    printf("piuio_emu: libusb_get_active_config_descriptor %d\n", __LINE__);
+    PRINTF("piuio_emu: libusb_get_active_config_descriptor %d\n", __LINE__);
     
     if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
-        printf("  Requested for PIULXIO\n");
+        PRINTF("  Requested for PIULXIO\n");
         *config = malloc(sizeof(struct libusb_config_descriptor));
         memset(*config, 0, sizeof(struct libusb_config_descriptor));
         memcpy(*config, &piulxio_config_desc, sizeof(struct libusb_config_descriptor));
@@ -611,7 +611,7 @@ int API_EXPORTED libusb_get_active_config_descriptor(libusb_device *dev,
     
     if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIUIO_VENDOR_ID) {
-        printf("  Requested for PIUIO\n");
+        PRINTF("  Requested for PIUIO\n");
         *config = malloc(sizeof(struct libusb_config_descriptor));
         memset(*config, 0, sizeof(struct libusb_config_descriptor));
         memcpy(*config, &piuio_config_desc, sizeof(struct libusb_config_descriptor));
@@ -621,7 +621,7 @@ int API_EXPORTED libusb_get_active_config_descriptor(libusb_device *dev,
     
     if(dev->device_descriptor.idProduct == PIUIOBUTTON_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIUIOBUTTON_VENDOR_ID) {
-        printf("  Requested for PIUIOBUTTON\n");
+        PRINTF("  Requested for PIUIOBUTTON\n");
         *config = malloc(sizeof(struct libusb_config_descriptor));
         memset(*config, 0, sizeof(struct libusb_config_descriptor));
         memcpy(*config, &piuiobutton_config_desc, sizeof(struct libusb_config_descriptor));
@@ -635,7 +635,7 @@ int API_EXPORTED libusb_get_active_config_descriptor(libusb_device *dev,
 void API_EXPORTED libusb_free_config_descriptor(
 	struct libusb_config_descriptor *config)
 {
-    printf("piuio_emu: libusb_free_config_descriptor %d\n", __LINE__);
+    PRINTF("piuio_emu: libusb_free_config_descriptor %d\n", __LINE__);
 	if (!config)
 		return;
     
@@ -650,11 +650,11 @@ void API_EXPORTED libusb_free_config_descriptor(
 int API_EXPORTED libusb_open(libusb_device *dev,
 	libusb_device_handle **dev_handle)
 {
-    printf("piuio_emu: libusb_open %d\n", __LINE__);
+    PRINTF("piuio_emu: libusb_open %d\n", __LINE__);
     
     if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
-        printf("  Opened for PIULXIO\n");
+        PRINTF("  Opened for PIULXIO\n");
         *dev_handle = malloc(sizeof(struct libusb_device_handle));
         memset(*dev_handle, 0, sizeof(struct libusb_device_handle));
         (*dev_handle)->dev = dev;
@@ -663,7 +663,7 @@ int API_EXPORTED libusb_open(libusb_device *dev,
     
     if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIUIO_VENDOR_ID) {
-        printf("  Opened for PIUIO\n");
+        PRINTF("  Opened for PIUIO\n");
         *dev_handle = malloc(sizeof(struct libusb_device_handle));
         memset(*dev_handle, 0, sizeof(struct libusb_device_handle));
         (*dev_handle)->dev = dev;
@@ -672,7 +672,7 @@ int API_EXPORTED libusb_open(libusb_device *dev,
     
     if(dev->device_descriptor.idProduct == PIUIOBUTTON_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIUIOBUTTON_VENDOR_ID) {
-        printf("  Opened for PIUIOBUTTON\n");
+        PRINTF("  Opened for PIUIOBUTTON\n");
         *dev_handle = malloc(sizeof(struct libusb_device_handle));
         memset(*dev_handle, 0, sizeof(struct libusb_device_handle));
         (*dev_handle)->dev = dev;
@@ -682,28 +682,28 @@ int API_EXPORTED libusb_open(libusb_device *dev,
 }
 
 void API_EXPORTED libusb_close(libusb_device_handle *dev_handle){
-    printf("piuio_emu: libusb_close %d\n", __LINE__);
+    PRINTF("piuio_emu: libusb_close %d\n", __LINE__);
 
     libusb_device *dev;
     dev = dev_handle->dev;
     
     if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
-        printf("  Closed for PIULXIO\n");
+        PRINTF("  Closed for PIULXIO\n");
         free(dev_handle);
         return;
     }
     
     if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIUIO_VENDOR_ID) {
-        printf("  Closed for PIUIO\n");
+        PRINTF("  Closed for PIUIO\n");
         free(dev_handle);
         return;
     }
     
     if(dev->device_descriptor.idProduct == PIUIOBUTTON_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIUIOBUTTON_VENDOR_ID) {
-        printf("  Closed for PIUIOBUTTON\n");
+        PRINTF("  Closed for PIUIOBUTTON\n");
         free(dev_handle);
         return;
     }
@@ -853,15 +853,15 @@ static int piulxio_libusb_control_transfer(
     }
     else if (wIndex == 0 && request_type == 0xA1 && bRequest == PIULXIO_HID_SET_REPORT)
     {
-        // printf("push data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
+        // PRINTF("push data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
         return piulxio_helper_process_data_out(data, wLength);
     }
     else if (wIndex == 0 && request_type == 0x21 && bRequest == PIULXIO_HID_SET_REPORT)
     {
-        // printf("recv data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
+        // PRINTF("recv data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
         return piulxio_helper_process_data_in(data, wLength);
     }
-    printf("Unknown request: %x %x %x %x %x\n", request_type, bRequest, wValue, wIndex, wLength);
+    PRINTF("Unknown request: %x %x %x %x %x\n", request_type, bRequest, wValue, wIndex, wLength);
     return 0;
 }
 
@@ -874,15 +874,15 @@ static int piuio_libusb_control_transfer(
     }
     else if ((request_type & USB_DIR_IN) && (request_type & USB_TYPE_VENDOR) && (bRequest & PIUIO_CTL_REQ))
     {
-        // printf("recv data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
+        // PRINTF("recv data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
         return piuio_helper_process_data_in(data, wLength);
     }
     else if ((request_type & USB_DIR_OUT) && (request_type & USB_TYPE_VENDOR) && (bRequest & PIUIO_CTL_REQ))
     {
-        // printf("push data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
+        // PRINTF("push data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
         return piuio_helper_process_data_out(data, wLength);
     }
-    printf("Unknown request: %x %x %x %x %x\n", request_type, bRequest, wValue, wIndex, wLength);
+    PRINTF("Unknown request: %x %x %x %x %x\n", request_type, bRequest, wValue, wIndex, wLength);
     return 0;
 }
 
@@ -897,7 +897,7 @@ static int piuiobutton_libusb_control_transfer(
     {
         return piuiobutton_helper_process_data(data, wLength);
     }
-    printf("Unknown request: %x %x %x %x %x\n", request_type, bRequest, wValue, wIndex, wLength);
+    PRINTF("Unknown request: %x %x %x %x %x\n", request_type, bRequest, wValue, wIndex, wLength);
     return 0;
 }
 
@@ -905,7 +905,7 @@ int API_EXPORTED libusb_control_transfer(libusb_device_handle *dev_handle,
 	uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex,
 	unsigned char *data, uint16_t wLength, unsigned int timeout)
 {
-    //printf("piuio_emu: libusb_control_transfer %d\n", __LINE__);
+    //PRINTF("piuio_emu: libusb_control_transfer %d\n", __LINE__);
 
     libusb_device *dev;
     dev = dev_handle->dev;
@@ -942,7 +942,7 @@ int API_EXPORTED libusb_interrupt_transfer(libusb_device_handle *dev_handle,
 	unsigned char endpoint, unsigned char *data, int length,
 	int *transferred, unsigned int timeout)
 {
-    // printf("piuio_emu: libusb_interrupt_transfer %d\n", __LINE__);
+    // PRINTF("piuio_emu: libusb_interrupt_transfer %d\n", __LINE__);
 
     libusb_device *dev;
     dev = dev_handle->dev;
@@ -958,7 +958,7 @@ int API_EXPORTED libusb_interrupt_transfer(libusb_device_handle *dev_handle,
             return *transferred;
         }
         else {
-            printf("PIULXIO: Unknown endpoint %d\n", (int)endpoint);
+            PRINTF("PIULXIO: Unknown endpoint %d\n", (int)endpoint);
             *transferred = 0;
             return 0;
         }
@@ -975,7 +975,7 @@ int API_EXPORTED libusb_interrupt_transfer(libusb_device_handle *dev_handle,
             return *transferred;
         }
         else {
-            printf("PIUIO (libusb_interrupt_transfer): Unknown endpoint %d\n", (int)endpoint);
+            PRINTF("PIUIO (libusb_interrupt_transfer): Unknown endpoint %d\n", (int)endpoint);
             *transferred = 0;
             return 0;
         }
@@ -992,7 +992,7 @@ int API_EXPORTED libusb_interrupt_transfer(libusb_device_handle *dev_handle,
             return *transferred;
         }
         else {
-            printf("PIUIOBUTTON (libusb_interrupt_transfer): Unknown endpoint %d\n", (int)endpoint);
+            PRINTF("PIUIOBUTTON (libusb_interrupt_transfer): Unknown endpoint %d\n", (int)endpoint);
             *transferred = 0;
             return 0;
         }
@@ -1024,7 +1024,7 @@ static int dummy_response(libusb_device_handle *dev_handle) {
 }
 
 /*struct libusb_transfer * LIBUSB_CALL libusb_alloc_transfer(int iso_packets) {
-    printf("CKDUR: libusb_alloc_transfer (1.0) %d\n", __LINE__);
+    PRINTF("CKDUR: libusb_alloc_transfer (1.0) %d\n", __LINE__);
     struct libusb_transfer * tr = malloc(sizeof(struct libusb_transfer));
     memset(tr, 0, sizeof(struct libusb_transfer));
     return tr;
@@ -1058,7 +1058,7 @@ true_libusb_cancel_transfer_call:
 }
 
 /*void LIBUSB_CALL libusb_free_transfer(struct libusb_transfer *transfer) {
-    printf("CKDUR: libusb_free_transfer (1.0) %d\n", __LINE__);
+    PRINTF("CKDUR: libusb_free_transfer (1.0) %d\n", __LINE__);
     if(transfer) {
         free(transfer);
     }
@@ -1118,7 +1118,7 @@ int API_EXPORTED libusb_handle_events(libusb_context *ctx) {
             else if(transfer->endpoint == PIULXIO_ENDPOINT_OUT)
                 transfer->actual_length = piulxio_helper_process_data_out(transfer->buffer, transfer->length);
             else
-                printf("PIULXIO (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
+                PRINTF("PIULXIO (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
 
             if (transfer->callback)
                 transfer->callback(transfer);
@@ -1134,7 +1134,7 @@ int API_EXPORTED libusb_handle_events(libusb_context *ctx) {
             else if(transfer->endpoint == PIUIO_ENDPOINT_OUT)
                 transfer->actual_length = piuio_helper_process_data_out(transfer->buffer, transfer->length);
             else
-                printf("PIUIO (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
+                PRINTF("PIUIO (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
             if (transfer->callback)
                 transfer->callback(transfer);
             continue;
@@ -1149,7 +1149,7 @@ int API_EXPORTED libusb_handle_events(libusb_context *ctx) {
             else if(transfer->endpoint == PIUIOBUTTON_ENDPOINT_OUT)
                 transfer->actual_length = piuiobutton_helper_process_data(transfer->buffer, transfer->length);
             else
-                printf("PIUIOBUTTON (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
+                PRINTF("PIUIOBUTTON (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
             if (transfer->callback) 
                 transfer->callback(transfer);
             continue;
@@ -1205,7 +1205,7 @@ int API_EXPORTED libusb_release_interface(libusb_device_handle *dev_handle,
 }
 
 void API_EXPORTED libusb_exit(libusb_context *ctx) {
-    printf("piuio_emu: libusb_exit %d\n", __LINE__);
+    PRINTF("piuio_emu: libusb_exit %d\n", __LINE__);
     thread_poll_done = 1;
     pthread_join(thread_poll, NULL);
     
