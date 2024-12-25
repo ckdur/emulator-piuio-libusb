@@ -823,8 +823,8 @@ static void try_get_version_3(int i) {
     player1_auto = (void*)((char*)pt + (int)all_contstructs[i].p1_a);
     player2_auto = (void*)((char*)pt + (int)all_contstructs[i].p2_a);
 
-    printf("Function returned (v3): %p\n", pt);
-    printf("p1: %p, p2: %p\n", player1_auto, player2_auto);
+    PRINTF("Function returned (v3): %p\n", pt);
+    PRINTF("p1: %p, p2: %p\n", player1_auto, player2_auto);
     return;
 }
 
@@ -836,11 +836,11 @@ void check_autoplay(void) {
             memcmp(all_contstructs[i].ver, all_contstructs[i].cmp_ver, strlen(all_contstructs[i].cmp_ver)) == 0) {
         
             int skip_mem = 0;
-            printf("Detected for %s (%s)\n", all_contstructs[i].cmp_name, all_contstructs[i].cmp_ver);
+            PRINTF("Detected for %s (%s)\n", all_contstructs[i].cmp_name, all_contstructs[i].cmp_ver);
             if(all_contstructs[i].version == 2) {
                 procmanager_GetProc func = all_contstructs[i].procmanager_GetProc;
                 void* pt = (void*)((int)func(all_contstructs[i].proc_manager, "PLAY") + (int)all_contstructs[i].proc_to_manager_offset);
-                printf("Function returned: %p\n", pt);
+                PRINTF("Function returned: %p\n", pt);
                 player1_auto = (void*)((char*)pt + (int)all_contstructs[i].p1_a);
                 player2_auto = (void*)((char*)pt + (int)all_contstructs[i].p2_a);
             }
@@ -881,7 +881,7 @@ void check_autoplay(void) {
                 }
             }
 
-            printf("p1: %p, p2: %p\n", player1_auto, player2_auto);
+            PRINTF("p1: %p, p2: %p\n", player1_auto, player2_auto);
             auto_version = all_contstructs[i].version;
             game_name = all_contstructs[i].name;
             game_ver = all_contstructs[i].ver;
@@ -894,7 +894,7 @@ void check_autoplay(void) {
         }
     }
     if(!auto_available) {
-        printf("No autoplay support\n");
+        PRINTF("No autoplay support\n");
     }
 }
 

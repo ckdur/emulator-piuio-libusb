@@ -66,7 +66,7 @@ void KeyHandler_Twitch_Init(void) {
   comms = (struct command_spec*)malloc(sizeof(struct command_spec)*cap_comms);
   
   //if (pthread_mutex_init(&mutex, NULL) != 0) { 
-  //  printf("\n mutex init has failed for twitch server\n"); 
+  //  PRINTF("\n mutex init has failed for twitch server\n"); 
   //  return; 
   //} 
 
@@ -105,7 +105,7 @@ void KeyHandler_Twitch_Init(void) {
           sizeof(serv_addr)) < 0) 
           error("ERROR on binding");
   listen(sockfd,5);
-  printf("Twitch server listening on port %d\n", net_port);
+  PRINTF("Twitch server listening on port %d\n", net_port);
 }
 
 #define MAXBUF (1*1024*1024)
@@ -158,7 +158,7 @@ static void handle_socket(void){
       unsigned long t2 = GetCurrentTime();
       if((t2 - tlastaccept) > (DIE_AFTER_X_SECONDS*1000000))
       {
-        printf("Timeout\n");
+        PRINTF("Timeout\n");
         isListen = 0;
         close(newsockfd);
         return; // Try in the next iteration to do the accept
@@ -167,7 +167,7 @@ static void handle_socket(void){
     }
     
     if(buffer[0] == 'Q') {
-      printf("Quiting the client\n");
+      PRINTF("Quiting the client\n");
       send(newsockfd, "Q\n", strlen("Q\n"), 0); // Notify of exit
       isListen = 0;
       close(newsockfd);
@@ -184,7 +184,7 @@ static void handle_socket(void){
       }
       memcpy(buf + siz, buffer, n);
       siz += n;
-      //printf("Here is the message (%d): %s\n", n, buffer);
+      //PRINTF("Here is the message (%d): %s\n", n, buffer);
       //n = write(newsockfd, "I got your message", 18);
       //if (n < 0) {
       //  error("ERROR writing to socket");
@@ -253,7 +253,7 @@ int poll_change_steps = 0;
 
 int HandleBuffer(int deploy_full) {
   if(siz <= 0) return 0;
-  //printf("Entering: HandleBuffer\n");
+  //PRINTF("Entering: HandleBuffer\n");
   buf[siz] = 0; // To treat is as string
   char* bufaux = buf;
   char* bufend = buf + siz;
@@ -272,14 +272,14 @@ int HandleBuffer(int deploy_full) {
         // Drop the buffer
         siz = 0;
         buf[siz] = 0;
-        printf("WARN: Buffer dropped\n");
+        PRINTF("WARN: Buffer dropped\n");
         break;
       }
     }
     else {
       // It found the \n, convert it to \0 and do the parsing
       (*f) = 0;
-      //printf("Command: %s\n", bufaux);
+      //PRINTF("Command: %s\n", bufaux);
       char* f2 = bufaux;
       char* fs = bufaux;
       // Now, analyze the command
@@ -294,7 +294,7 @@ int HandleBuffer(int deploy_full) {
         
         // Now, we have here an argument try to see what it is
         // Assume that they are already filtered
-        //printf("  Argument: %s\n", fs);
+        //PRINTF("  Argument: %s\n", fs);
         
         // Common commands
         if(strcmp(fs, "delay")  == 0) {
@@ -356,7 +356,7 @@ int HandleBuffer(int deploy_full) {
       }
     }
   }
-  //printf("Current state of the buf: %s\n", buf);
+  //PRINTF("Current state of the buf: %s\n", buf);
   return req;
 }
 
@@ -364,7 +364,7 @@ static void OnUpdateBPM(unsigned long bef, double bBPM) {
   // In this function, we want to update the beat of all the stuff, as the reference updated
   
   double beats = GetBeat2(tlastchange - bef, bBPM);
-  printf("The number of beats to update: %g\n", beats);
+  PRINTF("The number of beats to update: %g\n", beats);
 
   // NOTE: Here was a procedure to change all beats. It does not exist anymore
 }
@@ -408,13 +408,13 @@ void KeyHandler_Twitch_Poll(void) {
   if(count > 0) {
     int ie = 0;
     int dest = 0;
-    //printf("Count = %d\n", count);
+    //PRINTF("Count = %d\n", count);
     for(int i = 0; i < scomms; i++) {
       if(expired[ie] != i)
       {
         if(dest != i) { // A little performance
           memcpy(&comms[dest], &comms[i], sizeof(struct command_spec));
-          //printf("Source: %d, Destination: %d\n", i, dest);
+          //PRINTF("Source: %d, Destination: %d\n", i, dest);
         }
         dest++;
       }
@@ -503,7 +503,7 @@ void KeyHandler_Twitch_UpdateLights(unsigned char* bytes) {
           cBPM /= 2.0;
         while(cBPM < 80.0) // The slowest BPM in PIU is 80
           cBPM *= 2.0;
-        printf("BPM change: %g -> %g (%g), exp=%g, diff=%g\n", fBPM, cBPM, decBPM, exp, diff);
+        PRINTF("BPM change: %g -> %g (%g), exp=%g, diff=%g\n", fBPM, cBPM, decBPM, exp, diff);
         unsigned long bef = tlastchange;
         double bBPM = fBPM;
         fBPM = cBPM;
@@ -559,14 +559,14 @@ void HandleRequest(int req) {
       l2c, l1, neon, l1c, l2);
 
     send(newsockfd, msg, strlen(msg), 0);
-    //printf("Sent the light status\n");
+    //PRINTF("Sent the light status\n");
   }
   if(req == STATE_REQUEST_LIGHTS_RAW) {
     snprintf(msg, sizeof(msg), "%.2x%.2x%.2x%.2x\n", 
       bytes_l[3], bytes_l[2], bytes_l[1], bytes_l[0]);
 
     send(newsockfd, msg, strlen(msg), 0);
-    //printf("Sent the light raw status\n");
+    //PRINTF("Sent the light raw status\n");
   }
   if(req == STATE_REQUEST_STEP) {
     unsigned char p1r = bytes_f[0] & bytes_f[1] & bytes_f[2] & bytes_f[3];
@@ -596,7 +596,7 @@ void HandleRequest(int req) {
       service, coin1, test, clear, coin2);
 
     send(newsockfd, msg, strlen(msg), 0);
-    //printf("Sent the step status\n");
+    //PRINTF("Sent the step status\n");
   }
   if(req == STATE_REQUEST_STEP_RAW) {
     snprintf(msg, sizeof(msg), "%.2x%.2x%.2x%.2x %.2x%.2x%.2x%.2x %.2x%.2x%.2x%.2x\n", 
@@ -605,7 +605,7 @@ void HandleRequest(int req) {
       bytes_f[11], bytes_f[10], bytes_f[9], bytes_f[8]);
 
     send(newsockfd, msg, strlen(msg), 0);
-    //printf("Sent the step raw status\n");
+    //PRINTF("Sent the step raw status\n");
   }
   if(req == STATE_REQUEST_LIGHTS_RECURRENT) {
     poll_change_lights = 1;
@@ -638,7 +638,7 @@ void HandleRequest(int req) {
       game_name, game_ver);
 
     send(newsockfd, msg, strlen(msg), 0);
-    //printf("Sent the step raw status\n");
+    //PRINTF("Sent the step raw status\n");
   }
 
   unsigned char bytes_l_next[4];  

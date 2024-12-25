@@ -40,7 +40,7 @@ void init_piuio(void){
         return;
     }
 
-    printf("Number of USB devices found: %zd\n", num_devices);
+    PRINTF("Number of USB devices found: %zd\n", num_devices);
 
     // Iterate through the list of devices
     for (ssize_t i = 0; i < num_devices; ++i) {
@@ -59,7 +59,7 @@ void init_piuio(void){
             (desc.idVendor == PIUIO_VENDOR_ID && desc.idProduct == PIUIO_PRODUCT_ID) ||
             (desc.idVendor == PIUIOBUTTON_VENDOR_ID && desc.idProduct == PIUIOBUTTON_VENDOR_ID)
             ) {
-            printf("Device found: Vendor ID=0x%04x, Product ID=0x%04x\n", desc.idVendor, desc.idProduct);
+            PRINTF("Device found: Vendor ID=0x%04x, Product ID=0x%04x\n", desc.idVendor, desc.idProduct);
             libusb_device_handle *dev_handle = NULL;
             r = true_libusb_open(device, &dev_handle);
             if(r < 0) continue;
