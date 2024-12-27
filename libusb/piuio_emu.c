@@ -351,7 +351,9 @@ int thread_poll_done = 0;
 static void init_piuio_emu(void) {
     usbi_mutex_init(&piuioemu_mutex);
     usbi_mutex_init(&piuioemu_poll_mutex);
+#if 0
     init_keyboards();
+#endif
     KeyHandler_Twitch_Init();
     check_autoplay();
     piuioemu_queue = createQueue();
