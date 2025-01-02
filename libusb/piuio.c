@@ -111,6 +111,8 @@ void poll_piuio(void){
                 0x80 | PIULXIO_ENDPOINT_IN, bytes_piuio, 16,
                 &transferred, 1000);
             
+            bytes_piuiob[0] = 0xFF;
+            bytes_piuiob[1] = 0xFF;
             if(piuioemu_mode & EMU_PIUIO_BUTTON) {
                 // Emulate the piuio button with the regular pad
                 bytes_piuiob[0] = 0xFF;
@@ -130,7 +132,6 @@ void poll_piuio(void){
             }
             
             // The LXIO can also pull states of the piuiob
-            bytes_piuiob[0] = 0xFF;
             if((~bytes_piuio[10]) & 0x03) bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
             if((~bytes_piuio[10]) & 0x04) bytes_piuiob[0] &= 0xF7; // Green on Center
             if((~bytes_piuio[10]) & 0x08) bytes_piuiob[0] &= 0xFD; // Left on DL
@@ -139,7 +140,6 @@ void poll_piuio(void){
             if((~bytes_piuio[11]) & 0x04) bytes_piuiob[0] &= 0x7F; // Green on Center
             if((~bytes_piuio[11]) & 0x08) bytes_piuiob[0] &= 0xDF; // Left on DL
             if((~bytes_piuio[11]) & 0x10) bytes_piuiob[0] &= 0xBF; // Right on DR
-            bytes_piuiob[1] = 0xFF;
         }
         
         if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
