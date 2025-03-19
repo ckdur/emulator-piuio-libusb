@@ -55,7 +55,7 @@ void init_piuio(void){
         }
 
         // Check if it matches the target device
-        if ((desc.idVendor == PIULXIO_VENDOR_ID && desc.idProduct == PIULXIO_PRODUCT_ID) ||
+        if ((desc.idVendor == PIULXIO_VENDOR_ID && (desc.idProduct == PIULXIO_PRODUCT_ID || desc.idProduct == PIULXIO_PRODUCT_ID_2)) ||
             (desc.idVendor == PIUIO_VENDOR_ID && desc.idProduct == PIUIO_PRODUCT_ID) ||
             (desc.idVendor == PIUIOBUTTON_VENDOR_ID && desc.idProduct == PIUIOBUTTON_VENDOR_ID)
             ) {
@@ -95,7 +95,7 @@ void poll_piuio(void){
         libusb_device *dev;
         dev = dev_handle->dev;
 
-        if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
+        if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
             dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
 
             unsigned char datout[16];

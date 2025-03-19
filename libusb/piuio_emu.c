@@ -362,13 +362,18 @@ static void init_piuio_emu(void) {
 
     if ((val = getenv("_PIUIOEMU_WITH_PIULXIO"))) {
         r = strtol(val, NULL, 10);
-        if(r) {
+        if(r == 1) {
             piuioemu_mode |= WITH_PIULXIO;
             piuioemu_mode &= ~WITH_PIUIO;
             piuioemu_mode &= ~WITH_PIUIOBUTTON;
         }
+        else if(r == 2) {
+            piuioemu_mode |= WITH_PIULXIO_2;
+            piuioemu_mode &= ~WITH_PIUIO;
+            piuioemu_mode &= ~WITH_PIUIOBUTTON;
+        }
         else {
-            piuioemu_mode &= ~WITH_PIULXIO;
+            piuioemu_mode &= (~WITH_PIULXIO) & (~WITH_PIULXIO_2);
         }
     }
 
@@ -468,18 +473,19 @@ ssize_t API_EXPORTED libusb_get_device_list(libusb_context *ctx,
     ssize_t len = 0; //= true_libusb_get_device_list(ctx, list);
 
     ssize_t filtered_len = 0;
-    if(piuioemu_mode & WITH_PIULXIO) filtered_len++;
+    if((piuioemu_mode & WITH_PIULXIO) || (piuioemu_mode & WITH_PIULXIO_2)) filtered_len++;
     if(piuioemu_mode & WITH_PIUIO) filtered_len++;
     if(piuioemu_mode & WITH_PIUIOBUTTON) filtered_len++;
     struct libusb_device **ret = calloc(filtered_len+len+1, sizeof(struct libusb_device*));
     struct libusb_device **p = ret;
 
     // Add three new devices
-    if(piuioemu_mode & WITH_PIULXIO) {
+    if((piuioemu_mode & WITH_PIULXIO) || (piuioemu_mode & WITH_PIULXIO_2)) {
         PRINTF("  Adding PIULXIO\n");
         struct libusb_device *dev = malloc(sizeof(struct libusb_device));
         memset(dev, 0, sizeof(struct libusb_device));
-        dev->device_descriptor.idProduct = PIULXIO_PRODUCT_ID;
+        if(piuioemu_mode & WITH_PIULXIO) dev->device_descriptor.idProduct = PIULXIO_PRODUCT_ID;
+        if(piuioemu_mode & WITH_PIULXIO_2) dev->device_descriptor.idProduct = PIULXIO_PRODUCT_ID_2;
         dev->device_descriptor.idVendor = PIULXIO_VENDOR_ID;
         dev->refcnt = 1;
         *p = libusb_ref_device(dev);
@@ -538,7 +544,7 @@ void API_EXPORTED libusb_free_device_list(libusb_device **list,
 int API_EXPORTED libusb_get_device_descriptor(libusb_device *dev,
 	struct libusb_device_descriptor *desc) {
     
-    if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
+    if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
         memcpy(desc, &piulxio_dev_desc, sizeof(struct libusb_device_descriptor));
         return 0;
@@ -564,7 +570,7 @@ int API_EXPORTED libusb_get_config_descriptor(libusb_device *dev,
 {
     PRINTF("piuio_emu: libusb_get_config_descriptor %d\n", __LINE__);
     
-    if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
+    if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
         PRINTF("  Requested for PIULXIO\n");
         *config = malloc(sizeof(struct libusb_config_descriptor));
@@ -601,7 +607,7 @@ int API_EXPORTED libusb_get_active_config_descriptor(libusb_device *dev,
 	struct libusb_config_descriptor **config) {
     PRINTF("piuio_emu: libusb_get_active_config_descriptor %d\n", __LINE__);
     
-    if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
+    if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
         PRINTF("  Requested for PIULXIO\n");
         *config = malloc(sizeof(struct libusb_config_descriptor));
@@ -654,7 +660,7 @@ int API_EXPORTED libusb_open(libusb_device *dev,
 {
     PRINTF("piuio_emu: libusb_open %d\n", __LINE__);
     
-    if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
+    if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
         PRINTF("  Opened for PIULXIO\n");
         *dev_handle = malloc(sizeof(struct libusb_device_handle));
@@ -689,7 +695,7 @@ void API_EXPORTED libusb_close(libusb_device_handle *dev_handle){
     libusb_device *dev;
     dev = dev_handle->dev;
     
-    if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
+    if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
         PRINTF("  Closed for PIULXIO\n");
         free(dev_handle);
@@ -912,7 +918,7 @@ int API_EXPORTED libusb_control_transfer(libusb_device_handle *dev_handle,
     libusb_device *dev;
     dev = dev_handle->dev;
     
-    if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
+    if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
         return piulxio_libusb_control_transfer(
             bmRequestType, bRequest, wValue, wIndex,
@@ -949,7 +955,7 @@ int API_EXPORTED libusb_interrupt_transfer(libusb_device_handle *dev_handle,
     libusb_device *dev;
     dev = dev_handle->dev;
     
-    if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
+    if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
         if((endpoint & 0x7F) == PIULXIO_ENDPOINT_IN) {
             *transferred = piulxio_helper_process_data_in(data, length);
@@ -1008,7 +1014,7 @@ static int dummy_response(libusb_device_handle *dev_handle) {
     libusb_device *dev;
     dev = dev_handle->dev;
 
-    if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
+    if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
         return 0;
     }
@@ -1110,7 +1116,7 @@ int API_EXPORTED libusb_handle_events(libusb_context *ctx) {
         libusb_device *dev;
         dev = transfer->dev_handle->dev;
 
-        if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
+        if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
                 dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
             if(transfer->type != LIBUSB_TRANSFER_TYPE_INTERRUPT) continue;
             transfer->status = LIBUSB_TRANSFER_COMPLETED;

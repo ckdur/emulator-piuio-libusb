@@ -7,6 +7,7 @@
 
 #define PIULXIO_VENDOR_ID 0x0d2f
 #define PIULXIO_PRODUCT_ID 0x1020
+#define PIULXIO_PRODUCT_ID_2 0x1040
 #define PIULXIO_ENDPOINT_OUT 0x02
 #define PIULXIO_ENDPOINT_IN 0x01
 #define PIULXIO_ENDPOINT_PACKET_SIZE 0x10
@@ -51,6 +52,7 @@ extern int piuioemu_mode;
 #define WITH_PIUIO 0x2
 #define WITH_PIUIOBUTTON 0x4
 #define EMU_PIUIO_BUTTON 0x8
+#define WITH_PIULXIO_2 0x10
 
 #ifdef DEBUG
 #define PRINTF(fmt, ...) printf(fmt, ## __VA_ARGS__)
