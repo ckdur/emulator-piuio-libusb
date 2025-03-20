@@ -197,3 +197,31 @@ void poll_piuio(void){
         }
     }
 }
+
+void API_EXPORTED libusb_piuio_get_status(int* status);
+void API_EXPORTED libusb_piuio_get_status(int* status) {
+    PRINTF("piuio_emu: libusb_piuio_get_status %d\n", __LINE__);
+    *status = 0;
+
+    for(int k = 0; k < npiuio; k++) { 
+        libusb_device_handle *dev_handle = piuio[k];
+        libusb_device *dev;
+        dev = dev_handle->dev;
+        if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
+            dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
+            *status |= WITH_PIULXIO;
+        }
+        if(dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2 && 
+            dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
+            *status |= WITH_PIULXIO_2;
+        }
+        if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
+            dev->device_descriptor.idVendor == PIUIO_VENDOR_ID) {
+            *status |= WITH_PIUIO;
+        }
+        if(dev->device_descriptor.idProduct == PIUIOBUTTON_PRODUCT_ID && 
+            dev->device_descriptor.idVendor == PIUIOBUTTON_VENDOR_ID) {
+            *status |= WITH_PIUIOBUTTON;
+        }
+    }
+}
