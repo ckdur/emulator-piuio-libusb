@@ -407,6 +407,16 @@ static void init_piuio_emu(void) {
         }
     }
 
+    if ((val = getenv("_PIUIOEMU_PROPAGATE"))) {
+        r = strtol(val, NULL, 10);
+        if(r) {
+            piuioemu_mode |= EMU_PROPAGATE;
+        }
+        else {
+            piuioemu_mode &= ~EMU_PROPAGATE;
+        }
+    }
+
     //finish_piuio();
     init_piuio();
 

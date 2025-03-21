@@ -89,6 +89,14 @@ void init_piuio(void){
     piuio_ctx = ctx;
 }
 
+// The pulling state. We need to buffer it to avoid race conditions
+unsigned char poll_bytes_piuio[16] = { // From PIUIO
+    0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 1P
+    0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 2P
+    0xFF, 0xFF, // Coins, service
+    0xFF, 0xFF, // Frontal buttons in LX mode
+    0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
+unsigned char poll_bytes_piuiob[2] = {0xFF, 0xFF}; // From PIUIObutton
 void poll_piuio(void){
     for(int k = 0; k < npiuio; k++) { 
         libusb_device_handle *dev_handle = piuio[k];
@@ -108,44 +116,30 @@ void poll_piuio(void){
                 PIULXIO_ENDPOINT_OUT, datout, 16,
                 &transferred, 1000);
             true_libusb_interrupt_transfer(dev_handle,
-                0x80 | PIULXIO_ENDPOINT_IN, bytes_piuio, 16,
+                0x80 | PIULXIO_ENDPOINT_IN, poll_bytes_piuio, 16,
                 &transferred, 1000);
             
-            bytes_piuiob[0] = 0xFF;
-            bytes_piuiob[1] = 0xFF;
-            if(piuioemu_mode & EMU_PIUIO_BUTTON) {
-                // Emulate the piuio button with the regular pad
-                bytes_piuiob[0] = 0xFF;
-                int i;
-                for (i = 0; i < 4; i++) {
-                    if((~bytes_piuio[i+0]) & 0x03) bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
-                    if((~bytes_piuio[i+0]) & 0x04) bytes_piuiob[0] &= 0xF7; // Green on Center
-                    if((~bytes_piuio[i+0]) & 0x08) bytes_piuiob[0] &= 0xFD; // Left on DL
-                    if((~bytes_piuio[i+0]) & 0x10) bytes_piuiob[0] &= 0xFB; // Right on DR
-                    if((~bytes_piuio[i+4]) & 0x03) bytes_piuiob[0] &= 0xEF; // Red button on either UL/UR
-                    if((~bytes_piuio[i+4]) & 0x04) bytes_piuiob[0] &= 0x7F; // Green on Center
-                    if((~bytes_piuio[i+4]) & 0x08) bytes_piuiob[0] &= 0xDF; // Left on DL
-                    if((~bytes_piuio[i+4]) & 0x10) bytes_piuiob[0] &= 0xBF; // Right on DR
-                }
-                
-                bytes_piuiob[1] = 0xFF;
-            }
+                poll_bytes_piuiob[0] = 0xFF;
+                poll_bytes_piuiob[1] = 0xFF;
             
             // The LXIO can also pull states of the piuiob
-            if((~bytes_piuio[10]) & 0x03) bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
-            if((~bytes_piuio[10]) & 0x04) bytes_piuiob[0] &= 0xF7; // Green on Center
-            if((~bytes_piuio[10]) & 0x08) bytes_piuiob[0] &= 0xFD; // Left on DL
-            if((~bytes_piuio[10]) & 0x10) bytes_piuiob[0] &= 0xFB; // Right on DR
-            if((~bytes_piuio[11]) & 0x03) bytes_piuiob[0] &= 0xEF; // Red button on either UL/UR
-            if((~bytes_piuio[11]) & 0x04) bytes_piuiob[0] &= 0x7F; // Green on Center
-            if((~bytes_piuio[11]) & 0x08) bytes_piuiob[0] &= 0xDF; // Left on DL
-            if((~bytes_piuio[11]) & 0x10) bytes_piuiob[0] &= 0xBF; // Right on DR
+            if((~poll_bytes_piuio[10]) & 0x03) poll_bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
+            if((~poll_bytes_piuio[10]) & 0x04) poll_bytes_piuiob[0] &= 0xF7; // Green on Center
+            if((~poll_bytes_piuio[10]) & 0x08) poll_bytes_piuiob[0] &= 0xFD; // Left on DL
+            if((~poll_bytes_piuio[10]) & 0x10) poll_bytes_piuiob[0] &= 0xFB; // Right on DR
+            if((~poll_bytes_piuio[11]) & 0x03) poll_bytes_piuiob[0] &= 0xEF; // Red button on either UL/UR
+            if((~poll_bytes_piuio[11]) & 0x04) poll_bytes_piuiob[0] &= 0x7F; // Green on Center
+            if((~poll_bytes_piuio[11]) & 0x08) poll_bytes_piuiob[0] &= 0xDF; // Left on DL
+            if((~poll_bytes_piuio[11]) & 0x10) poll_bytes_piuiob[0] &= 0xBF; // Right on DR
         }
         
         if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
             dev->device_descriptor.idVendor == PIUIO_VENDOR_ID) {
 
             int i;
+
+            poll_bytes_piuio[8] = 0xFF;
+            poll_bytes_piuio[9] = 0xFF;
             for (i = 0; i < 4; i++)
             {
                 unsigned char datin[8];
@@ -162,26 +156,10 @@ void poll_piuio(void){
                 true_libusb_control_transfer(
                     dev_handle, USB_DIR_IN | USB_TYPE_VENDOR, PIUIO_CTL_REQ, 
                     0, 0, datin, 8, 10000);
-                bytes_piuio[i+0] = datin[0];
-                bytes_piuio[i+4] = datin[2];
-                bytes_piuio[8] = datin[1];
-                bytes_piuio[9] = datin[3];
-            }
-            if(piuioemu_mode & EMU_PIUIO_BUTTON) {
-                // Emulate the piuio button with the regular pad
-                bytes_piuiob[0] = 0xFF;
-                for (i = 0; i < 4; i++) {
-                    if((~bytes_piuio[i+0]) & 0x03) bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
-                    if((~bytes_piuio[i+0]) & 0x04) bytes_piuiob[0] &= 0xF7; // Green on Center
-                    if((~bytes_piuio[i+0]) & 0x08) bytes_piuiob[0] &= 0xFD; // Left on DL
-                    if((~bytes_piuio[i+0]) & 0x10) bytes_piuiob[0] &= 0xFB; // Right on DR
-                    if((~bytes_piuio[i+4]) & 0x03) bytes_piuiob[0] &= 0xEF; // Red button on either UL/UR
-                    if((~bytes_piuio[i+4]) & 0x04) bytes_piuiob[0] &= 0x7F; // Green on Center
-                    if((~bytes_piuio[i+4]) & 0x08) bytes_piuiob[0] &= 0xDF; // Left on DL
-                    if((~bytes_piuio[i+4]) & 0x10) bytes_piuiob[0] &= 0xBF; // Right on DR
-                }
-                
-                bytes_piuiob[1] = 0xFF;
+                poll_bytes_piuio[i+0] = datin[0];
+                poll_bytes_piuio[i+4] = datin[2];
+                poll_bytes_piuio[8] &= datin[1];
+                poll_bytes_piuio[9] &= datin[3];
             }
         }
         
@@ -193,9 +171,43 @@ void poll_piuio(void){
             true_libusb_interrupt_transfer(dev_handle,
                 PIUIOBUTTON_ENDPOINT_OUT, dat, 16,
                 &transferred, 1000);
-            memcpy(bytes_piuiob, dat, 2);
+            memcpy(poll_bytes_piuiob, dat, 2);
+        }
+
+        if(piuioemu_mode & EMU_PROPAGATE) {
+            // Propagate the sensor state to all sensors
+            unsigned char prop1 = 0xFF;
+            unsigned char prop2 = 0xFF;
+            for (int i = 0; i < 4; i++) {
+                prop1 &= poll_bytes_piuio[i+0];
+                prop2 &= poll_bytes_piuio[i+4];
+            }
+            for (int i = 0; i < 4; i++) {
+                poll_bytes_piuio[i+0] = prop1;
+                poll_bytes_piuio[i+4] = prop2;
+            }
+        }
+
+        if(piuioemu_mode & EMU_PIUIO_BUTTON) {
+            // Emulate the piuio button with the regular pad
+            poll_bytes_piuiob[0] = 0xFF;
+            int i;
+            for (i = 0; i < 4; i++) {
+                if((~poll_bytes_piuio[i+0]) & 0x03) poll_bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
+                if((~poll_bytes_piuio[i+0]) & 0x04) poll_bytes_piuiob[0] &= 0xF7; // Green on Center
+                if((~poll_bytes_piuio[i+0]) & 0x08) poll_bytes_piuiob[0] &= 0xFD; // Left on DL
+                if((~poll_bytes_piuio[i+0]) & 0x10) poll_bytes_piuiob[0] &= 0xFB; // Right on DR
+                if((~poll_bytes_piuio[i+4]) & 0x03) poll_bytes_piuiob[0] &= 0xEF; // Red button on either UL/UR
+                if((~poll_bytes_piuio[i+4]) & 0x04) poll_bytes_piuiob[0] &= 0x7F; // Green on Center
+                if((~poll_bytes_piuio[i+4]) & 0x08) poll_bytes_piuiob[0] &= 0xDF; // Left on DL
+                if((~poll_bytes_piuio[i+4]) & 0x10) poll_bytes_piuiob[0] &= 0xBF; // Right on DR
+            }
+            
+            poll_bytes_piuiob[1] = 0xFF;
         }
     }
+    memcpy(bytes_piuio, poll_bytes_piuio, sizeof(poll_bytes_piuio));
+    memcpy(bytes_piuiob, poll_bytes_piuiob, sizeof(poll_bytes_piuiob));
 }
 
 void API_EXPORTED libusb_piuio_get_status(int* status);
