@@ -646,7 +646,7 @@ struct autoplay_construct all_contstructs[] = {
     {
         .version = 0,
         .cmp_name = "IT UP: PRIME JP",
-        .cmp_ver = "1.17.0",
+        .cmp_ver = "V1.17.0",
         .name = (void*)(0x81b39ea + 5), // 81b39ea
         .ver = (void*)0x81b3c04,
         .demo_var = (void*)0xe35e4c0,
