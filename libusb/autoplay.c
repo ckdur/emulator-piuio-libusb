@@ -721,6 +721,28 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0x08c2676c,
         .p2_a = (void*)0x08c47950,
     },
+    // PIU PRO2 (only for identification)
+    {
+        .version = 0,
+        .cmp_name = "It Up Pro 2",
+        .cmp_ver = "It Up Pro 2 1",
+        .name = (void*)(0x84e3faf + 5),
+        .ver = (void*)(0x84f3ce4 + 5),
+        .demo_var = (void*)0,
+        .p1_a = (void*)0,
+        .p2_a = (void*)0,
+    },
+    // Pump Jump (only for identification)
+    {
+        .version = 0,
+        .cmp_name = "It Up Jump",
+        .cmp_ver = "It Up Jump 1.0",
+        .name = (void*)(0x8512f05 + 5),
+        .ver = (void*)(0x8522134 + 5),
+        .demo_var = (void*)0,
+        .p1_a = (void*)0,
+        .p2_a = (void*)0,
+    },
     // PIU Infinity (only for identification)
     {
         .version = 0,
