@@ -693,7 +693,7 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0x0ac1f5c4,
         .p2_a = (void*)0x0ac40840,
     },
-    // PIU XX v05_1
+    // PIU XX v08_3
     /*
         if ((((&DAT_08c2676c)[uVar10 * 0x8479] != -1) ||
             (*(int *)(&DAT_08c26768 + uVar10 * 0x211e4) != -1)) &&
