@@ -480,13 +480,15 @@ ssize_t API_EXPORTED libusb_get_device_list(libusb_context *ctx,
 {
     PRINTF("piuio_emu: libusb_get_device_list %d\n", __LINE__);
     // Call the original one
-    ssize_t len = 0; //= true_libusb_get_device_list(ctx, list);
+    libusb_device **true_list;
+    ssize_t true_len = true_libusb_get_device_list(ctx, &true_list);
+    if(true_len < 0) true_len = 0;
 
     ssize_t filtered_len = 0;
     if((piuioemu_mode & WITH_PIULXIO) || (piuioemu_mode & WITH_PIULXIO_2)) filtered_len++;
     if(piuioemu_mode & WITH_PIUIO) filtered_len++;
     if(piuioemu_mode & WITH_PIUIOBUTTON) filtered_len++;
-    struct libusb_device **ret = calloc(filtered_len+len+1, sizeof(struct libusb_device*));
+    struct libusb_device **ret = calloc(filtered_len+true_len+1, sizeof(struct libusb_device*));
     struct libusb_device **p = ret;
 
     // Add three new devices
@@ -522,24 +524,16 @@ ssize_t API_EXPORTED libusb_get_device_list(libusb_context *ctx,
         p++;
     }
 
-    /*for(int k = 0; k < len; k++) {
-        if(!
-           (((*list)[k]->device_descriptor.idProduct == PIULXIO_PRODUCT_ID && 
-            (*list)[k]->device_descriptor.idVendor == PIULXIO_VENDOR_ID) ||
-           ((*list)[k]->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
-            (*list)[k]->device_descriptor.idVendor == PIUIO_VENDOR_ID) || 
-           ((*list)[k]->device_descriptor.idProduct == PIUIOBUTTON_PRODUCT_ID && 
-            (*list)[k]->device_descriptor.idVendor == PIUIOBUTTON_VENDOR_ID))) {
-            *p = (*list)[k];
-            p++;
-            filtered_len++;
-        }
-    }*/
+    // TODO: We are going to loss the true_list. If there is a potential memory leak, is here
+
 
     // Copy the rest just as it is
-    //memcpy(ret+3, *list, len*sizeof(struct libusb_device*));
+    if(true_len > 0) {
+        memcpy(&ret[filtered_len], true_list, true_len*sizeof(struct libusb_device*));
+        free(true_list);
+    }
     *list = ret;
-    return filtered_len;
+    return filtered_len+true_len;
 }
 
 void API_EXPORTED libusb_free_device_list(libusb_device **list,
