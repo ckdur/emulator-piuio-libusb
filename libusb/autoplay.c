@@ -721,6 +721,17 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0x08c2676c,
         .p2_a = (void*)0x08c47950,
     },
+    // PIU Phoenix 2.07 (only for identification)
+    {
+        .version = 0,
+        .cmp_name = "IT UP: PHOENIX",
+        .cmp_ver = "v2.07.0",
+        .name = (void*)(0x81d0a8c + 5),
+        .ver = (void*)0x81c60f8,
+        .demo_var = (void*)0,
+        .p1_a = (void*)0,
+        .p2_a = (void*)0,
+    },
     // PIU PRO2 (only for identification)
     {
         .version = 0,
