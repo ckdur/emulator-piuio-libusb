@@ -78,7 +78,7 @@ void init_piuio(void){
             }
             else {
                 npiuio++;
-                piuio = realloc(piuio, sizeof(libusb_device_handle *));
+                piuio = realloc(piuio, npiuio*sizeof(libusb_device_handle *));
             }
             piuio[npiuio-1] = dev_handle;
         }
