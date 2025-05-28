@@ -704,12 +704,12 @@ struct autoplay_construct all_contstructs[] = {
     {
         .version = 0,
         .cmp_name = "IT UP: XX",
-        .cmp_ver = "v2.08.3",
-        .name = (void*)(0x81b81a2 + 5),
-        .ver = (void*)0x81b8404,
-        .demo_var = (void*)0xa0634e4,
-        .p1_a = (void*)0x08c2676c,
-        .p2_a = (void*)0x08c47950,
+        .cmp_ver = "v2.08.2",
+        .name = (void*)(0x81b89d2 + 5),
+        .ver = (void*)0x81b8c44,
+        .demo_var = (void*)0xa0854e4,
+        .p1_a = (void*)0x08c2862c,
+        .p2_a = (void*)0x08c49810,
     },
     {
         .version = 0,
