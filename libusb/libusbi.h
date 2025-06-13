@@ -1556,6 +1556,10 @@ int true_libusb_kernel_driver_active(libusb_device_handle *dev_handle,
 	int interface_number);
 int true_libusb_detach_kernel_driver(libusb_device_handle *dev_handle,
 	int interface_number);
+int true_libusb_set_interface_alt_setting(libusb_device_handle *dev_handle,
+	int interface_number, int alternate_setting);
+int true_libusb_get_configuration(libusb_device_handle *dev_handle,
+	int *config);
 int true_libusb_set_configuration(libusb_device_handle *dev_handle, int configuration);
 int true_libusb_claim_interface(libusb_device_handle *dev_handle,
 	int interface_number);

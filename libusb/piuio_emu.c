@@ -340,7 +340,7 @@ unsigned char bytes_fb[2] = {0xFF, 0xFF};
 
 #include <pthread.h>
 usbi_mutex_t piuioemu_mutex;
-usbi_mutex_t piuioemu_poll_mutex;
+//usbi_mutex_t piuioemu_poll_mutex;
 Queue* piuioemu_queue;
 int g_init = 0;
 int piuioemu_mode = WITH_PIUIO | WITH_PIUIOBUTTON;
@@ -350,7 +350,7 @@ int thread_poll_done = 0;
 
 static void init_piuio_emu(void) {
     usbi_mutex_init(&piuioemu_mutex);
-    usbi_mutex_init(&piuioemu_poll_mutex);
+    //usbi_mutex_init(&piuioemu_poll_mutex);
 #if 0
     init_keyboards();
 #endif
@@ -723,7 +723,7 @@ void API_EXPORTED libusb_close(libusb_device_handle *dev_handle){
 }
 
 static int piulxio_helper_process_data_in(uint8_t* bytes, int size) {
-    usbi_mutex_lock(&piuioemu_poll_mutex);
+    //usbi_mutex_lock(&piuioemu_poll_mutex);
     poll_piuio_emu();
     int ret = min(16, size);
     memset(bytes, 0xFF, size);
@@ -762,7 +762,7 @@ static int piulxio_helper_process_data_in(uint8_t* bytes, int size) {
 
         bytes_f[i] = bytes[i] = bytes_piuio[i]; // Only for testing if actually does something?
     }
-    usbi_mutex_unlock(&piuioemu_poll_mutex);
+    //usbi_mutex_unlock(&piuioemu_poll_mutex);
 
     return ret;
 }
@@ -783,7 +783,7 @@ static int piuio_helper_process_data_in(uint8_t* bytes, int size) {
     int s1 = bytes_l[0] & 0x3;
     int s2 = bytes_l[2] & 0x3;
 
-    usbi_mutex_lock(&piuioemu_poll_mutex);
+    //usbi_mutex_lock(&piuioemu_poll_mutex);
     //static int calls = 0;
     //calls = (calls+1) % 4;
     //if(calls == 0) // Only poll on s1 == 0
@@ -798,7 +798,7 @@ static int piuio_helper_process_data_in(uint8_t* bytes, int size) {
     bytes_f[9] = bytes[3] = bytes_piuio[9] & bytes_j[3] & bytes_p[3] & bytes_t[3];
 
     // Only mutex on s1 == 0
-    usbi_mutex_unlock(&piuioemu_poll_mutex);
+    //usbi_mutex_unlock(&piuioemu_poll_mutex);
     return ret;
 }
 
@@ -814,13 +814,13 @@ static int piuio_helper_process_data_out(uint8_t* data, int size) {
 }
 
 static int piuiobutton_helper_process_data(uint8_t* bytes, int size) {
-    usbi_mutex_lock(&piuioemu_poll_mutex);
+    //usbi_mutex_lock(&piuioemu_poll_mutex);
     //poll_piuio_emu();
     int ret = min(16, size);
     memset(bytes, 0xFF, size);
     bytes_fb[0] = bytes[0] = bytes_piuiob[0] & bytes_jb[0] & bytes_pb[0] & bytes_tb[0];
     bytes_fb[1] = bytes[1] = bytes_piuiob[1] & bytes_jb[1] & bytes_pb[1] & bytes_tb[1];
-    usbi_mutex_unlock(&piuioemu_poll_mutex);
+    //usbi_mutex_unlock(&piuioemu_poll_mutex);
     return ret;
 }
 
@@ -1214,6 +1214,39 @@ int API_EXPORTED libusb_release_interface(libusb_device_handle *dev_handle,
 
     if(dummy_response(dev_handle) == 0) return 0;
     return true_libusb_release_interface(dev_handle, interface_number);
+}
+
+int API_EXPORTED libusb_set_interface_alt_setting(libusb_device_handle *dev_handle,
+	int interface_number, int alternate_setting)
+{
+    if(dummy_response(dev_handle) == 0) return 0;
+    return true_libusb_set_interface_alt_setting(dev_handle, interface_number, alternate_setting);
+}
+
+int API_EXPORTED libusb_get_configuration(libusb_device_handle *dev_handle,
+	int *config)
+{
+    libusb_device *dev;
+    dev = dev_handle->dev;
+
+    if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
+       dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
+        *config = piulxio_config_desc.bConfigurationValue;
+        return 0;
+    }
+    
+    if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
+       dev->device_descriptor.idVendor == PIUIO_VENDOR_ID) {
+        *config = piuio_config_desc.bConfigurationValue;
+        return 0;
+    }
+    
+    if(dev->device_descriptor.idProduct == PIUIOBUTTON_PRODUCT_ID && 
+       dev->device_descriptor.idVendor == PIUIOBUTTON_VENDOR_ID) {
+        *config = piuiobutton_config_desc.bConfigurationValue;
+        return 0;
+    }
+    return true_libusb_get_configuration(dev_handle, config);
 }
 
 void API_EXPORTED libusb_exit(libusb_context *ctx) {
