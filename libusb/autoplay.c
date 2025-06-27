@@ -903,6 +903,7 @@ void API_EXPORTED report_autoplay(struct autoplay_construct* con) {
     }
     // Removing that ugly stuff about the NTDEC
     // Good watermark if people ever copy our stuff
+#if 0
     con->name -= 5;
     UNPROTECT((int)con->name, 4096);
     memcpy(con->name, "PUMP", 4); // Replace HACK/FUCK for PUMP
@@ -913,6 +914,7 @@ void API_EXPORTED report_autoplay(struct autoplay_construct* con) {
             memcpy(con->ver+10, "ANDAMIRO CO. ", 8+5); // Replace NTDEC/FMG for ANDAMIRO
         }
     }
+#endif
     if(con->version == 0) {
         UNPROTECT((int)con->ver, 4096);
         strcpy(con->ver, con->cmp_ver);
