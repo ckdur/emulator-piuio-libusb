@@ -164,31 +164,6 @@ As is an C++ functuion, the first argument is the proc_manager, the second is th
 
 typedef void* (*procmanager_GetProc)(void* obj, const char* name);
 
-struct autoplay_construct {
-  int version;
-  // All version - matching
-  const char* cmp_name;
-  const char* cmp_ver;
-  char* name;
-  char* ver;
-  // Versions 0-4,- demovar and judgament
-  unsigned char* demo_var;
-  unsigned int* p1_a;
-  unsigned int* p2_a;
-  // Version 2-3 - Proc manager stuff
-  void* proc_manager;
-  void* procmanager_GetProc;
-  void* proc_to_manager_offset;
-  unsigned int const_val;
-  // Version 5 - Location of jumps and random judgament
-  const char** rjumps; // Data to replace
-
-  void** jumps; // Actual location addresses
-  int* sjumps; // Size to patch
-  int njumps; // Number of jumps
-  void* rand_judgament; // Location of the random judgament function
-};
-
 struct autoplay_construct all_contstructs[] = {
     // PIU 1st, Schaff Compilation new version
     {
@@ -865,27 +840,27 @@ int auto_2 = -1;
 
 int auto_available = 0;
 int auto_version = 0;
-int auto_chosen = 0;
+struct autoplay_construct* auto_chosen = NULL;
 int auto_val = 0;
 
 int auto_patched = 0;
 char** auto_orig_jumps;
 
-static void try_get_version_3(int i) {
+static void try_get_version_3(struct autoplay_construct* con) {
 
-    procmanager_GetProc func = all_contstructs[i].procmanager_GetProc;
-    void* proc_manager = (void*)(*(int*)all_contstructs[i].proc_manager);
+    procmanager_GetProc func = con->procmanager_GetProc;
+    void* proc_manager = (void*)(*(int*)con->proc_manager);
     void* prept = (void*)func(proc_manager, "PLAY");
     if(memcheck(prept) != 0) return;
-    void* pt = (void*)((int)prept + (int)all_contstructs[i].proc_to_manager_offset);
+    void* pt = (void*)((int)prept + (int)con->proc_to_manager_offset);
 
     if(memcheck(pt) != 0) return;
-    /*void* pt2 = (void*)(*(int*)((int)pt + (int)all_contstructs[i].p1_a));
+    /*void* pt2 = (void*)(*(int*)((int)pt + (int)con->p1_a));
     if(memcheck(pt2) != 0) return;
     player1_auto = (void*)((int)pt2 + 4);
     player2_auto = (void*)((int)pt2 + 4);*/
-    player1_auto = (void*)((char*)pt + (int)all_contstructs[i].p1_a);
-    player2_auto = (void*)((char*)pt + (int)all_contstructs[i].p2_a);
+    player1_auto = (void*)((char*)pt + (int)con->p1_a);
+    player2_auto = (void*)((char*)pt + (int)con->p2_a);
 
     PRINTF("Function returned (v3): %p\n", pt);
     PRINTF("p1: %p, p2: %p\n", player1_auto, player2_auto);
@@ -893,68 +868,14 @@ static void try_get_version_3(int i) {
 }
 
 void check_autoplay(void) {
-
     for(int i = 0; i < size_all_constructs; i++) {
-        if(memcheck(all_contstructs[i].name) == 0 && memcheck(all_contstructs[i].ver) == 0 && 
-            strcmp(all_contstructs[i].name, all_contstructs[i].cmp_name) == 0 && 
-            memcmp(all_contstructs[i].ver, all_contstructs[i].cmp_ver, strlen(all_contstructs[i].cmp_ver)) == 0) {
+        struct autoplay_construct* con = &all_contstructs[i];
+        if(memcheck(con->name) == 0 && memcheck(con->ver) == 0 && 
+            strcmp(con->name, con->cmp_name) == 0 && 
+            memcmp(con->ver, con->cmp_ver, strlen(con->cmp_ver)) == 0) {
         
-            int skip_mem = 0;
-            PRINTF("Detected for %s (%s)\n", all_contstructs[i].cmp_name, all_contstructs[i].cmp_ver);
-            if(all_contstructs[i].version == 2) {
-                procmanager_GetProc func = all_contstructs[i].procmanager_GetProc;
-                void* pt = (void*)((int)func(all_contstructs[i].proc_manager, "PLAY") + (int)all_contstructs[i].proc_to_manager_offset);
-                PRINTF("Function returned: %p\n", pt);
-                player1_auto = (void*)((char*)pt + (int)all_contstructs[i].p1_a);
-                player2_auto = (void*)((char*)pt + (int)all_contstructs[i].p2_a);
-            }
-            else if(all_contstructs[i].version == 3){
-                try_get_version_3(i);
-                skip_mem = 1;
-            }
-            else {
-                player1_auto = all_contstructs[i].p1_a;
-                player2_auto = all_contstructs[i].p2_a;
-            }
-            // Removing that ugly stuff about the NTDEC
-            // Good watermark if people ever copy our stuff
-            all_contstructs[i].name -= 5;
-            UNPROTECT((int)all_contstructs[i].name, 4096);
-            memcpy(all_contstructs[i].name, "PUMP", 4); // Replace HACK/FUCK for PUMP
-            if(all_contstructs[i].version == 4) {
-                if(strlen(all_contstructs[i].cmp_ver) != 0) {
-                    all_contstructs[i].ver -= 20;
-                    UNPROTECT((int)all_contstructs[i].ver, 4096);
-                    memcpy(all_contstructs[i].ver+10, "ANDAMIRO CO. ", 8+5); // Replace NTDEC/FMG for ANDAMIRO
-                }
-            }
-            if(all_contstructs[i].version == 0) {
-                UNPROTECT((int)all_contstructs[i].ver, 4096);
-                strcpy(all_contstructs[i].ver, all_contstructs[i].cmp_ver);
-            }
-            if(all_contstructs[i].version == 5) {
-                // Alloc and backup the jumps
-                int njumps = all_contstructs[i].njumps;
-                auto_orig_jumps = malloc(njumps*sizeof(void*));
-                for(int k = 0; k < njumps; k++) {
-                    int sjump = all_contstructs[i].sjumps[k];
-                    void* jump = all_contstructs[i].jumps[k];
-                    auto_orig_jumps[k] = malloc(sjump);
-                    memcpy(auto_orig_jumps[k], jump, sjump);
-                    UNPROTECT((int)jump, 4096);
-                }
-            }
-
-            PRINTF("p1: %p, p2: %p\n", player1_auto, player2_auto);
-            auto_version = all_contstructs[i].version;
-            game_name = all_contstructs[i].name;
-            game_ver = all_contstructs[i].ver;
-            auto_val = all_contstructs[i].const_val;
-            auto_chosen = i;
-            if(!(memcheck(player1_auto) == 0 && memcheck(player2_auto) == 0) && !skip_mem)
-                 continue;
-            auto_available = 1;
-            break;
+            report_autoplay(&all_contstructs[i]);
+            if(auto_available) break;
         }
     }
     if(!auto_available) {
@@ -962,18 +883,76 @@ void check_autoplay(void) {
     }
 }
 
+void API_EXPORTED report_autoplay(struct autoplay_construct* con) {
+    int skip_mem = 0;
+    PRINTF("Detected for %s (%s)\n", con->cmp_name, con->cmp_ver);
+    if(con->version == 2) {
+        procmanager_GetProc func = con->procmanager_GetProc;
+        void* pt = (void*)((int)func(con->proc_manager, "PLAY") + (int)con->proc_to_manager_offset);
+        PRINTF("Function returned: %p\n", pt);
+        player1_auto = (void*)((char*)pt + (int)con->p1_a);
+        player2_auto = (void*)((char*)pt + (int)con->p2_a);
+    }
+    else if(con->version == 3){
+        try_get_version_3(con);
+        skip_mem = 1;
+    }
+    else {
+        player1_auto = con->p1_a;
+        player2_auto = con->p2_a;
+    }
+    // Removing that ugly stuff about the NTDEC
+    // Good watermark if people ever copy our stuff
+    con->name -= 5;
+    UNPROTECT((int)con->name, 4096);
+    memcpy(con->name, "PUMP", 4); // Replace HACK/FUCK for PUMP
+    if(con->version == 4) {
+        if(strlen(con->cmp_ver) != 0) {
+            con->ver -= 20;
+            UNPROTECT((int)con->ver, 4096);
+            memcpy(con->ver+10, "ANDAMIRO CO. ", 8+5); // Replace NTDEC/FMG for ANDAMIRO
+        }
+    }
+    if(con->version == 0) {
+        UNPROTECT((int)con->ver, 4096);
+        strcpy(con->ver, con->cmp_ver);
+    }
+    if(con->version == 5) {
+        // Alloc and backup the jumps
+        int njumps = con->njumps;
+        auto_orig_jumps = malloc(njumps*sizeof(void*));
+        for(int k = 0; k < njumps; k++) {
+            int sjump = con->sjumps[k];
+            void* jump = con->jumps[k];
+            auto_orig_jumps[k] = malloc(sjump);
+            memcpy(auto_orig_jumps[k], jump, sjump);
+            UNPROTECT((int)jump, 4096);
+        }
+    }
+
+    PRINTF("p1: %p, p2: %p\n", player1_auto, player2_auto);
+    auto_version = con->version;
+    game_name = con->name;
+    game_ver = con->ver;
+    auto_val = con->const_val;
+    auto_chosen = con;
+    if(!(memcheck(player1_auto) == 0 && memcheck(player2_auto) == 0) && !skip_mem)
+        return;
+    auto_available = 1;
+}
+
 void update_autoplay (void) {
   
     if(!auto_available) return;
 
-    int i = auto_chosen;
+    struct autoplay_construct* con = auto_chosen;
 
     if(auto_version == 3) {
         // The object may not be created when libusb was called
         // so we try to retrieve again
         // we cannot do the autoplay until the object is created
         if(player1_auto == NULL) {
-            try_get_version_3(i);
+            try_get_version_3(con);
             if(player1_auto == NULL) return; // Still not ready
         }
 
@@ -993,20 +972,20 @@ void update_autoplay (void) {
         // the only way is to patch the executable directly
         if(!auto_patched && auto_1 != -1) {
             // Patch the jumps
-            int njumps = all_contstructs[i].njumps;
+            int njumps = con->njumps;
             for(int k = 0; k < njumps; k++) {
-                int sjump = all_contstructs[i].sjumps[k];
-                void* jump = all_contstructs[i].jumps[k];
-                memcpy(jump, all_contstructs[i].rjumps, sjump);
+                int sjump = con->sjumps[k];
+                void* jump = con->jumps[k];
+                memcpy(jump, con->rjumps, sjump);
             }
             auto_patched = 1;
         }
         else if(!auto_patched && auto_1 == -1) {
             // Reverse the jumps
-            int njumps = all_contstructs[i].njumps;
+            int njumps = con->njumps;
             for(int k = 0; k < njumps; k++) {
-                int sjump = all_contstructs[i].sjumps[k];
-                void* jump = all_contstructs[i].jumps[k];
+                int sjump = con->sjumps[k];
+                void* jump = con->jumps[k];
                 memcpy(jump, auto_orig_jumps, sjump);
             }
             auto_patched = 0;
