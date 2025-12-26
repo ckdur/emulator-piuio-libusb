@@ -742,19 +742,31 @@ static int piulxio_helper_process_data_in(uint8_t* bytes, int size) {
     bytes_f[9] = bytes[9] = bytes_piuio[9] & bytes_j[3] & bytes_p[3] & bytes_t[3];
     
     // Frontal buttons
-    bytes_fb[0] = bytes_piuiob[0] & bytes_jb[0] & bytes_pb[0] & bytes_tb[0];
-    bytes_fb[1] = bytes_piuiob[1] & bytes_jb[1] & bytes_pb[1] & bytes_tb[1];
-        // From the info of the PIUIOBUTTON, we need to construct the LXIO version
-    bytes[10] = ((bytes_fb[0] & 0x01)? 0xFF:0xFC) & // UL/UR both on red button
-                ((bytes_fb[0] & 0x02)? 0xFF:0xF7) & // DL on left button
-                ((bytes_fb[0] & 0x04)? 0xFF:0xEF) & // DR on right button
-                ((bytes_fb[0] & 0x08)? 0xFF:0xFB) & // Center on green button
-                bytes_piuio[10];
-    bytes[11] = ((bytes_fb[0] & 0x10)? 0xFF:0xFC) & // UL/UR both on red button
-                ((bytes_fb[0] & 0x20)? 0xFF:0xF7) & // DL on left button
-                ((bytes_fb[0] & 0x40)? 0xFF:0xEF) & // DR on right button
-                ((bytes_fb[0] & 0x80)? 0xFF:0xFB) & // Center on green button
-                bytes_piuio[11];
+    if(is_piuiob) {
+        bytes_fb[0] = bytes_piuiob[0] & bytes_jb[0] & bytes_pb[0] & bytes_tb[0];
+        bytes_fb[1] = bytes_piuiob[1] & bytes_jb[1] & bytes_pb[1] & bytes_tb[1];
+            // From the info of the PIUIOBUTTON, we need to construct the LXIO version
+        bytes[10] = ((bytes_fb[0] & 0x01)? 0xFF:0xFC) & // UL/UR both on red button
+                    ((bytes_fb[0] & 0x02)? 0xFF:0xF7) & // DL on left button
+                    ((bytes_fb[0] & 0x04)? 0xFF:0xEF) & // DR on right button
+                    ((bytes_fb[0] & 0x08)? 0xFF:0xFB) ; // Center on green button
+        bytes[11] = ((bytes_fb[0] & 0x10)? 0xFF:0xFC) & // UL/UR both on red button
+                    ((bytes_fb[0] & 0x20)? 0xFF:0xF7) & // DL on left button
+                    ((bytes_fb[0] & 0x40)? 0xFF:0xEF) & // DR on right button
+                    ((bytes_fb[0] & 0x80)? 0xFF:0xFB) ; // Center on green button
+    }
+    else {
+        if((~bytes_piuio[10]) & 0x03) bytes_fb[0] &= 0xFE; // Red button on either UL/UR
+        if((~bytes_piuio[10]) & 0x04) bytes_fb[0] &= 0xF7; // Green on Center
+        if((~bytes_piuio[10]) & 0x08) bytes_fb[0] &= 0xFD; // Left on DL
+        if((~bytes_piuio[10]) & 0x10) bytes_fb[0] &= 0xFB; // Right on DR
+        if((~bytes_piuio[11]) & 0x03) bytes_fb[0] &= 0xEF; // Red button on either UL/UR
+        if((~bytes_piuio[11]) & 0x04) bytes_fb[0] &= 0x7F; // Green on Center
+        if((~bytes_piuio[11]) & 0x08) bytes_fb[0] &= 0xDF; // Left on DL
+        if((~bytes_piuio[11]) & 0x10) bytes_fb[0] &= 0xBF; // Right on DR
+        bytes[10] = bytes_piuio[10];
+        bytes[11] = bytes_piuio[11];
+    }
     bytes_f[10] = bytes[10];
     bytes_f[11] = bytes[11];
     // Probably unused stuff
@@ -1256,5 +1268,10 @@ void API_EXPORTED libusb_exit(libusb_context *ctx) {
     
     finish_piuio();
     KeyHandler_Twitch_Exit();
+}
+
+int API_EXPORTED XNextEvent(void *display, void *event_return);
+int API_EXPORTED XNextEvent(void *display, void *event_return) {
+    return XNextEventEMU(display, event_return);
 }
 

@@ -3,6 +3,7 @@
 
 extern unsigned char bytes_piuio[16];
 extern unsigned char bytes_piuiob[2];
+extern unsigned int is_piuiob;
 
 void init_piuio(void);
 void poll_piuio(void);

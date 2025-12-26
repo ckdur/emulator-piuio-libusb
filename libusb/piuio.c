@@ -9,6 +9,7 @@
 int npiuio = 0;
 libusb_device_handle** piuio;
 libusb_context *piuio_ctx = NULL;
+unsigned int is_piuiob = 0;
 void finish_piuio(void){
     if(npiuio <= 0) return;
     for(int i = 0; i < npiuio; i++) {
@@ -81,6 +82,8 @@ void init_piuio(void){
                 piuio = realloc(piuio, npiuio*sizeof(libusb_device_handle *));
             }
             piuio[npiuio-1] = dev_handle;
+            if(desc.idVendor == PIUIOBUTTON_VENDOR_ID && desc.idProduct == PIUIOBUTTON_VENDOR_ID)
+                is_piuiob = 1; // Enable this
         }
     }
 
@@ -187,24 +190,24 @@ void poll_piuio(void){
                 poll_bytes_piuio[i+4] = prop2;
             }
         }
+    }
 
-        if(piuioemu_mode & EMU_PIUIO_BUTTON) {
-            // Emulate the piuio button with the regular pad
-            poll_bytes_piuiob[0] = 0xFF;
-            int i;
-            for (i = 0; i < 4; i++) {
-                if((~poll_bytes_piuio[i+0]) & 0x03) poll_bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
-                if((~poll_bytes_piuio[i+0]) & 0x04) poll_bytes_piuiob[0] &= 0xF7; // Green on Center
-                if((~poll_bytes_piuio[i+0]) & 0x08) poll_bytes_piuiob[0] &= 0xFD; // Left on DL
-                if((~poll_bytes_piuio[i+0]) & 0x10) poll_bytes_piuiob[0] &= 0xFB; // Right on DR
-                if((~poll_bytes_piuio[i+4]) & 0x03) poll_bytes_piuiob[0] &= 0xEF; // Red button on either UL/UR
-                if((~poll_bytes_piuio[i+4]) & 0x04) poll_bytes_piuiob[0] &= 0x7F; // Green on Center
-                if((~poll_bytes_piuio[i+4]) & 0x08) poll_bytes_piuiob[0] &= 0xDF; // Left on DL
-                if((~poll_bytes_piuio[i+4]) & 0x10) poll_bytes_piuiob[0] &= 0xBF; // Right on DR
-            }
-            
-            poll_bytes_piuiob[1] = 0xFF;
+    if(piuioemu_mode & EMU_PIUIO_BUTTON) {
+        // Emulate the piuio button with the regular pad
+        poll_bytes_piuiob[0] = 0xFF;
+        int i;
+        for (i = 0; i < 4; i++) {
+            if((~poll_bytes_piuio[i+0]) & 0x03) poll_bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
+            if((~poll_bytes_piuio[i+0]) & 0x04) poll_bytes_piuiob[0] &= 0xF7; // Green on Center
+            if((~poll_bytes_piuio[i+0]) & 0x08) poll_bytes_piuiob[0] &= 0xFD; // Left on DL
+            if((~poll_bytes_piuio[i+0]) & 0x10) poll_bytes_piuiob[0] &= 0xFB; // Right on DR
+            if((~poll_bytes_piuio[i+4]) & 0x03) poll_bytes_piuiob[0] &= 0xEF; // Red button on either UL/UR
+            if((~poll_bytes_piuio[i+4]) & 0x04) poll_bytes_piuiob[0] &= 0x7F; // Green on Center
+            if((~poll_bytes_piuio[i+4]) & 0x08) poll_bytes_piuiob[0] &= 0xDF; // Left on DL
+            if((~poll_bytes_piuio[i+4]) & 0x10) poll_bytes_piuiob[0] &= 0xBF; // Right on DR
         }
+        
+        poll_bytes_piuiob[1] = 0xFF;
     }
     memcpy(bytes_piuio, poll_bytes_piuio, sizeof(poll_bytes_piuio));
     memcpy(bytes_piuiob, poll_bytes_piuiob, sizeof(poll_bytes_piuiob));
