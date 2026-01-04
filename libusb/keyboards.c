@@ -156,7 +156,7 @@ int XNextEventEMU(void *disp, void *event_ret)
     XEvent ev; int ks; char press;
     memcpy(&ev, event_return, sizeof(XEvent));
 
-    // printf("CKDUR: XNextEvent with Event = %d\n", ev.type);
+    //printf("CKDUR: XNextEvent with Event = %d\n", ev.type);
 
     // Do event acording to us
     switch  (ev.type) {

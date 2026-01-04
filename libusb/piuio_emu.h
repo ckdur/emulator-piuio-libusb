@@ -55,6 +55,7 @@ extern int piuioemu_mode;
 #define WITH_PIULXIO_2 0x10
 #define EMU_PROPAGATE 0x20
 
+//#define DEBUG
 #ifdef DEBUG
 #define PRINTF(fmt, ...) printf(fmt, ## __VA_ARGS__)
 #else

@@ -348,12 +348,22 @@ pthread_t thread_poll;
 void* thread_poll_func(void* a);
 int thread_poll_done = 0;
 
+static int file_exists(const char* name){
+  if(name == NULL) return 0;
+  FILE* test = fopen(name, "rb");
+  if(test == NULL) {
+    return 0;
+  }
+  fclose(test);
+  return 1;
+}
+
 static void init_piuio_emu(void) {
     usbi_mutex_init(&piuioemu_mutex);
     //usbi_mutex_init(&piuioemu_poll_mutex);
-#if 0
-    init_keyboards();
-#endif
+    if(file_exists("/SAVE/.keyboard"))
+        init_keyboards();
+
     KeyHandler_Twitch_Init();
     check_autoplay();
     piuioemu_queue = createQueue();

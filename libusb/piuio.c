@@ -122,8 +122,8 @@ void poll_piuio(void){
                 0x80 | PIULXIO_ENDPOINT_IN, poll_bytes_piuio, 16,
                 &transferred, 1000);
             
-                poll_bytes_piuiob[0] = 0xFF;
-                poll_bytes_piuiob[1] = 0xFF;
+            poll_bytes_piuiob[0] = 0xFF;
+            poll_bytes_piuiob[1] = 0xFF;
             
             // The LXIO can also pull states of the piuiob
             if((~poll_bytes_piuio[10]) & 0x03) poll_bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
