@@ -54,6 +54,7 @@ void init_piuio(void){
             fprintf(stderr, "Failed to get device descriptor: %s\n", libusb_error_name(r));
             continue;
         }
+        PRINTF("Probing: Vendor ID=0x%04x, Product ID=0x%04x\n", desc.idVendor, desc.idProduct);
 
         // Check if it matches the target device
         if ((desc.idVendor == PIULXIO_VENDOR_ID && (desc.idProduct == PIULXIO_PRODUCT_ID || desc.idProduct == PIULXIO_PRODUCT_ID_2)) ||
@@ -86,6 +87,7 @@ void init_piuio(void){
                 is_piuiob = 1; // Enable this
         }
     }
+    PRINTF("PIUIO init done\n");
 
     // Free the device list
     libusb_free_device_list(device_list, 1);
@@ -101,6 +103,7 @@ unsigned char poll_bytes_piuio[16] = { // From PIUIO
     0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
 unsigned char poll_bytes_piuiob[2] = {0xFF, 0xFF}; // From PIUIObutton
 void poll_piuio(void){
+    
     for(int k = 0; k < npiuio; k++) { 
         libusb_device_handle *dev_handle = piuio[k];
         libusb_device *dev;
@@ -115,15 +118,25 @@ void poll_piuio(void){
             datout[15] = 0xFF;
             int transferred;
             memcpy(datout, bytes_l, 4);
+            PRINTF("lxio: Out endp\n");
             true_libusb_interrupt_transfer(dev_handle,
                 PIULXIO_ENDPOINT_OUT, datout, 16,
                 &transferred, 1000);
+            PRINTF("lxio: In endp\n");
             true_libusb_interrupt_transfer(dev_handle,
                 0x80 | PIULXIO_ENDPOINT_IN, poll_bytes_piuio, 16,
                 &transferred, 1000);
             
             poll_bytes_piuiob[0] = 0xFF;
             poll_bytes_piuiob[1] = 0xFF;
+
+#ifdef DEBUG
+            PRINTF("LXIO poll: ");
+            for(int i = 0; i < 16; i++) {
+                PRINTF("%2x, ", (uint32_t)poll_bytes_piuio[i]);
+            }
+            PRINTF("\n");
+#endif
             
             // The LXIO can also pull states of the piuiob
             if((~poll_bytes_piuio[10]) & 0x03) poll_bytes_piuiob[0] &= 0xFE; // Red button on either UL/UR
