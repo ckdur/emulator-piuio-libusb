@@ -10,6 +10,7 @@ int npiuio = 0;
 libusb_device_handle** piuio;
 libusb_context *piuio_ctx = NULL;
 unsigned int is_piuiob = 0;
+unsigned int is_lxio = 0;
 void finish_piuio(void){
     if(npiuio <= 0) return;
     for(int i = 0; i < npiuio; i++) {
@@ -84,6 +85,10 @@ void init_piuio(void){
             }
             piuio[npiuio-1] = dev_handle;
             if(desc.idVendor == PIUIOBUTTON_VENDOR_ID && desc.idProduct == PIUIOBUTTON_VENDOR_ID)
+                is_lxio = 1; // Enable this
+            if(desc.idVendor == PIULXIO_VENDOR_ID && desc.idProduct == PIULXIO_PRODUCT_ID)
+                is_piuiob = 1; // Enable this
+            if(desc.idVendor == PIULXIO_VENDOR_ID && desc.idProduct == PIULXIO_PRODUCT_ID_2)
                 is_piuiob = 1; // Enable this
         }
     }
@@ -103,7 +108,6 @@ unsigned char poll_bytes_piuio[16] = { // From PIUIO
     0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
 unsigned char poll_bytes_piuiob[2] = {0xFF, 0xFF}; // From PIUIObutton
 void poll_piuio(void){
-    
     for(int k = 0; k < npiuio; k++) { 
         libusb_device_handle *dev_handle = piuio[k];
         libusb_device *dev;
@@ -205,7 +209,7 @@ void poll_piuio(void){
         }
     }
 
-    if(piuioemu_mode & EMU_PIUIO_BUTTON) {
+    if(piuioemu_mode & EMU_PIUIO_BUTTON && !is_lxio && !is_piuiob) {
         // Emulate the piuio button with the regular pad
         poll_bytes_piuiob[0] = 0xFF;
         int i;
