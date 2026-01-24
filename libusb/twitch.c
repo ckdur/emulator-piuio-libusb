@@ -364,6 +364,7 @@ static void OnUpdateBPM(unsigned long bef, double bBPM) {
   // In this function, we want to update the beat of all the stuff, as the reference updated
   
   double beats = GetBeat2(tlastchange - bef, bBPM);
+  (void)beats;
   PRINTF("The number of beats to update: %g\n", beats);
 
   // NOTE: Here was a procedure to change all beats. It does not exist anymore
@@ -523,7 +524,7 @@ unsigned char bytes_f_prev[16] = { // As LX
     0xFF, 0xFF, // Coins, service
     0xFF, 0xFF, // Frontal buttons in LX mode
     0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
-unsigned char bytes_l_prev[4] = {0x00, 0x00, 0x00, 0x00};
+unsigned char bytes_l_prev[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 void HandleRequest(int req) {
   char msg[256] = "";
@@ -641,7 +642,7 @@ void HandleRequest(int req) {
     //PRINTF("Sent the step raw status\n");
   }
 
-  unsigned char bytes_l_next[4];  
+  unsigned char bytes_l_next[16];  
   memcpy(bytes_l_next, bytes_l, sizeof(bytes_l));
   bytes_l_next[0] &= 0xFC;
   bytes_l_next[2] &= 0xFC;

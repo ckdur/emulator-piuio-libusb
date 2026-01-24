@@ -6,6 +6,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+unsigned char bytes_piuio[16] = { // From PIUIO
+    0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 1P
+    0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 2P
+    0xFF, 0xFF, // Coins, service
+    0xFF, 0xFF, // Frontal buttons in LX mode
+    0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
+unsigned char bytes_piuiob[2] = {0xFF, 0xFF}; // From PIUIObutton
+
 int npiuio = 0;
 libusb_device_handle** piuio;
 libusb_context *piuio_ctx = NULL;
@@ -121,7 +129,7 @@ void poll_piuio(void){
             datout[14] = 0xFF;
             datout[15] = 0xFF;
             int transferred;
-            memcpy(datout, bytes_l, 4);
+            memcpy(datout, bytes_l, 16);
             PRINTF("lxio: Out endp\n");
             true_libusb_interrupt_transfer(dev_handle,
                 PIULXIO_ENDPOINT_OUT, datout, 16,

@@ -44,7 +44,7 @@
 #define PIUIOBUTTON_ENDPOINT_OUT 0x02
 #define PIUIOBUTTON_ENDPOINT_IN 0x01
 
-extern unsigned char bytes_l[4];
+extern unsigned char bytes_l[16];
 extern unsigned char bytes_f[16];
 extern int piuioemu_mode;
 

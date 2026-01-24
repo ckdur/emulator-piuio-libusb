@@ -1029,11 +1029,13 @@ void update_autoplay (void) {
     // All other versions...
     if(auto_1 != -1)
         (*player1_auto) = auto_version == 0 ? auto_1: auto_val;
-    else
+    else {
         /*(*player1_auto) = auto_version == 0 ? 0xFFFFFFFF : 0*/;
+    }
 
     if(auto_2 != -1)
         (*player2_auto) = auto_version == 0 ? auto_2: auto_val;
-    else
+    else {
         /*(*player2_auto) = auto_version == 0 ? 0xFFFFFFFF : 0*/;
+    }
 }

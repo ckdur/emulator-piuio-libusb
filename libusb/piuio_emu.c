@@ -321,15 +321,7 @@ unsigned char bytes_pb[2] = {0xFF, 0xFF};
 unsigned char bytes_t[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // From twitch
 unsigned char bytes_tb[2] = {0xFF, 0xFF};
 
-unsigned char bytes_piuio[16] = { // From PIUIO
-    0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 1P
-    0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 2P
-    0xFF, 0xFF, // Coins, service
-    0xFF, 0xFF, // Frontal buttons in LX mode
-    0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
-unsigned char bytes_piuiob[2] = {0xFF, 0xFF}; // From PIUIObutton
-
-unsigned char bytes_l[4] = {0x00, 0x00, 0x00, 0x00};
+unsigned char bytes_l[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 unsigned char bytes_f[16] = { // As LX
     0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 1P
     0xFF, 0xFF, 0xFF, 0xFF, // Sensor status 2P
@@ -437,6 +429,7 @@ static void init_piuio_emu(void) {
 time_t start_time = 0;
 bool condition_met = false;
 void* thread_poll_func(void* a) {
+    (void)a;
     while(!thread_poll_done) {
         poll_keyboards();
         poll_piuio();
@@ -460,13 +453,14 @@ void* thread_poll_func(void* a) {
                 exit(0);
                 abort();
                 *((int*)NULL) = 0; // crash it
-                return;
+                return NULL;
             }
         }
         else {
             condition_met = false;
         }
     }
+    return NULL;
 }
 
 static void poll_piuio_emu(void) {
@@ -796,6 +790,18 @@ static int piulxio_helper_process_data_out(uint8_t* data, int size) {
     bytes_l[1] = data[1];
     bytes_l[2] = data[2];
     bytes_l[3] = data[3];
+    bytes_l[4] = data[4];
+    bytes_l[5] = data[5];
+    bytes_l[6] = data[6];
+    bytes_l[7] = data[7];
+    bytes_l[8] = data[8];
+    bytes_l[9] = data[9];
+    bytes_l[10] = data[10];
+    bytes_l[11] = data[11];
+    bytes_l[12] = data[12];
+    bytes_l[13] = data[13];
+    bytes_l[14] = data[14];
+    bytes_l[15] = data[15];
 
     return ret;
 }
@@ -902,6 +908,10 @@ static int piulxio_libusb_control_transfer(
 static int piuio_libusb_control_transfer(
 	uint8_t request_type, uint8_t bRequest, uint16_t wValue, uint16_t wIndex,
 	unsigned char *data, uint16_t wLength) {
+    (void)wValue;
+    (void)wIndex;
+    (void)data;
+    (void)wLength;
     if (request_type == USB_DIR_IN && bRequest == PIULXIO_GET_DESCRIPTOR)
     {
         // TODO: Fill acordingly
@@ -923,6 +933,10 @@ static int piuio_libusb_control_transfer(
 static int piuiobutton_libusb_control_transfer(
 	uint8_t request_type, uint8_t bRequest, uint16_t wValue, uint16_t wIndex,
 	unsigned char *data, uint16_t wLength) {
+    (void)wValue;
+    (void)wIndex;
+    (void)data;
+    (void)wLength;
     if (request_type == USB_DIR_IN && bRequest == PIULXIO_GET_DESCRIPTOR)
     {
         // TODO: Fill acordingly
@@ -1151,8 +1165,9 @@ int API_EXPORTED libusb_handle_events(libusb_context *ctx) {
                 transfer->actual_length = piulxio_helper_process_data_in(transfer->buffer, transfer->length);
             else if(transfer->endpoint == PIULXIO_ENDPOINT_OUT)
                 transfer->actual_length = piulxio_helper_process_data_out(transfer->buffer, transfer->length);
-            else
+            else {
                 PRINTF("PIULXIO (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
+            }
 
             if (transfer->callback)
                 transfer->callback(transfer);
@@ -1167,8 +1182,9 @@ int API_EXPORTED libusb_handle_events(libusb_context *ctx) {
                 transfer->actual_length = piuio_helper_process_data_in(transfer->buffer, transfer->length);
             else if(transfer->endpoint == PIUIO_ENDPOINT_OUT)
                 transfer->actual_length = piuio_helper_process_data_out(transfer->buffer, transfer->length);
-            else
+            else {
                 PRINTF("PIUIO (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
+            }
             if (transfer->callback)
                 transfer->callback(transfer);
             continue;
@@ -1182,8 +1198,9 @@ int API_EXPORTED libusb_handle_events(libusb_context *ctx) {
                 transfer->actual_length = piuiobutton_helper_process_data(transfer->buffer, transfer->length);
             else if(transfer->endpoint == PIUIOBUTTON_ENDPOINT_OUT)
                 transfer->actual_length = piuiobutton_helper_process_data(transfer->buffer, transfer->length);
-            else
+            else {
                 PRINTF("PIUIOBUTTON (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
+            }
             if (transfer->callback) 
                 transfer->callback(transfer);
             continue;
@@ -1228,7 +1245,7 @@ int API_EXPORTED libusb_claim_interface(libusb_device_handle *dev_handle,
 	int interface_number) {
 
     if(dummy_response(dev_handle) == 0) return 0;
-    return true_libusb_detach_kernel_driver(dev_handle, interface_number);
+    return true_libusb_claim_interface(dev_handle, interface_number);
 }
 
 int API_EXPORTED libusb_release_interface(libusb_device_handle *dev_handle,
@@ -1272,6 +1289,7 @@ int API_EXPORTED libusb_get_configuration(libusb_device_handle *dev_handle,
 }
 
 void API_EXPORTED libusb_exit(libusb_context *ctx) {
+    (void)ctx;
     PRINTF("piuio_emu: libusb_exit %d\n", __LINE__);
     thread_poll_done = 1;
     pthread_join(thread_poll, NULL);
