@@ -670,6 +670,10 @@ int API_EXPORTED libusb_open(libusb_device *dev,
     
     if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
+        if(!((piuioemu_mode & WITH_PIULXIO) || (piuioemu_mode & WITH_PIULXIO_2))) {
+            // Requested the LXIO, but is not enabled
+            return LIBUSB_ERROR_NO_DEVICE;
+        }
         PRINTF("  Opened for PIULXIO\n");
         *dev_handle = malloc(sizeof(struct libusb_device_handle));
         memset(*dev_handle, 0, sizeof(struct libusb_device_handle));
@@ -679,6 +683,10 @@ int API_EXPORTED libusb_open(libusb_device *dev,
     
     if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIUIO_VENDOR_ID) {
+        if(!(piuioemu_mode & WITH_PIUIO)) {
+            // Requested the PIUIO, but is not enabled
+            return LIBUSB_ERROR_NO_DEVICE;
+        }
         PRINTF("  Opened for PIUIO\n");
         *dev_handle = malloc(sizeof(struct libusb_device_handle));
         memset(*dev_handle, 0, sizeof(struct libusb_device_handle));
@@ -688,6 +696,10 @@ int API_EXPORTED libusb_open(libusb_device *dev,
     
     if(dev->device_descriptor.idProduct == PIUIOBUTTON_PRODUCT_ID && 
        dev->device_descriptor.idVendor == PIUIOBUTTON_VENDOR_ID) {
+        if(!(piuioemu_mode & WITH_PIUIOBUTTON)) {
+            // Requested the PIUIO, but is not enabled
+            return LIBUSB_ERROR_NO_DEVICE;
+        }
         PRINTF("  Opened for PIUIOBUTTON\n");
         *dev_handle = malloc(sizeof(struct libusb_device_handle));
         memset(*dev_handle, 0, sizeof(struct libusb_device_handle));
