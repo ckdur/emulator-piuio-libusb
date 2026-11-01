@@ -18,9 +18,18 @@
 #include "autoplay.h"
 
 #define min(a, b) ((a)<(b)?(a):(b))
-int16_t string0[] = PIULXIO_CTRL_300;
-unsigned short string1[] = PIULXIO_STR_MANUFACTURER;
-unsigned short string2[] = PIULXIO_STR_PRODUCT;
+// Full USB string descriptors (bLength, bDescriptorType=3, UTF-16LE text).
+// hidapi skips the 2 byte header, so returning bare text loses characters.
+static const uint8_t string0[] = {4, LIBUSB_DT_STRING, 0x09, 0x04}; // English (US)
+static uint8_t string1[2 + 2*32];
+static uint8_t string2[2 + 2*32];
+static void make_string_desc(uint8_t* out, const char* str) {
+    int n = (int)strlen(str);
+    if(n > 32) n = 32;
+    out[0] = (uint8_t)(2 + 2*n);
+    out[1] = LIBUSB_DT_STRING;
+    for(int i = 0; i < n; i++) { out[2+2*i] = (uint8_t)str[i]; out[3+2*i] = 0; }
+}
 
 const struct libusb_device_descriptor piulxio_dev_desc = {
     .bLength = 18,
@@ -261,7 +270,7 @@ static Queue* createQueue(void) {
     return queue;
 }
 
-// Function to submit (enqueue) an item to the queue
+// Function to submit (enqueue) an item to the queue. Caller holds piuioemu_queue_mutex
 static void submit_to_queue(Queue* queue, struct libusb_transfer * data) {
     Node* newNode = (Node*)malloc(sizeof(Node));
     newNode->data = data;
@@ -279,22 +288,10 @@ static void submit_to_queue(Queue* queue, struct libusb_transfer * data) {
     queue->rear = newNode;
 }
 
-// Function to remove a specific item from the queue
-static void remove_from_queue(Queue* queue, struct libusb_transfer * data) {
-    if (queue->front == NULL) {
-        PRINTF("Queue is empty, cannot remove.\n");
-        return;
-    }
-
+// Function to remove a specific item from the queue. Caller holds piuioemu_queue_mutex
+// Returns 1 if it was found (and removed)
+static int remove_from_queue(Queue* queue, struct libusb_transfer * data) {
     Node *temp = queue->front, *prev = NULL;
-
-    // Check if the front node is the one to be removed
-    if (temp != NULL && temp->data == data) {
-        queue->front = temp->next; // Update the front
-        if (queue->front == NULL) queue->rear = NULL; // Update rear if queue becomes empty
-        free(temp);
-        return;
-    }
 
     // Search for the node to be removed
     while (temp != NULL && temp->data != data) {
@@ -305,13 +302,15 @@ static void remove_from_queue(Queue* queue, struct libusb_transfer * data) {
     // If the data was not found
     if (temp == NULL) {
         PRINTF("Item %p not found in the queue.\n", data);
-        return;
+        return 0;
     }
 
     // Remove the node
-    prev->next = temp->next;
+    if (prev == NULL) queue->front = temp->next;
+    else prev->next = temp->next;
     if (temp == queue->rear) queue->rear = prev; // Update rear if needed
     free(temp);
+    return 1;
 }
 
 unsigned char bytes_j[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // From joysticks
@@ -332,6 +331,22 @@ unsigned char bytes_fb[2] = {0xFF, 0xFF};
 
 #include <pthread.h>
 usbi_mutex_t piuioemu_mutex;
+// Protects piuioemu_queue / piuioemu_cancelled. Never held while calling callbacks
+static pthread_mutex_t piuioemu_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t piuioemu_queue_cond = PTHREAD_COND_INITIALIZER;
+static Queue* piuioemu_cancelled;
+
+// LXIO IN report pacing. The game (hidapi) keeps an IN transfer always pending and
+// queues every completed report (up to 30), but only pops one per IO tick, right
+// after its OUT write. Completing IN transfers as fast as they are submitted fills
+// that queue, so, like the firmware, we complete one IN per OUT. While the game is
+// not writing at all (init, read-only hosts) an IN only completes on input changes.
+#define LX_HOST_IDLE_US 1000000
+static unsigned int lx_out_seq = 0;      // Incremented on every LX OUT report
+static unsigned int lx_in_seq = 0;       // lx_out_seq value already answered
+static int lx_host_writes = 0;
+static struct timespec lx_last_out;
+static uint8_t lx_last_in[16] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 //usbi_mutex_t piuioemu_poll_mutex;
 Queue* piuioemu_queue;
 int g_init = 0;
@@ -359,6 +374,9 @@ static void init_piuio_emu(void) {
     KeyHandler_Twitch_Init();
     check_autoplay();
     piuioemu_queue = createQueue();
+    piuioemu_cancelled = createQueue();
+    make_string_desc(string1, "ANDAMIRO");
+    make_string_desc(string2, "PIU HID V1.00");
     const char *val;
     int r;
 
@@ -459,6 +477,9 @@ void* thread_poll_func(void* a) {
         else {
             condition_met = false;
         }
+        // Real IOs already block on their transfers. This only avoids burning a
+        // whole core when there is nothing real to poll
+        usleep(500);
     }
     return NULL;
 }
@@ -479,6 +500,22 @@ int API_EXPORTED libusb_init_context(libusb_context **ctx, const struct libusb_i
     return r;
 }
 
+static struct libusb_device *fake_lxio = NULL;
+static struct libusb_device *fake_piuio = NULL;
+static struct libusb_device *fake_piuiobutton = NULL;
+static struct libusb_device *fake_device(struct libusb_device **slot, uint16_t vid, uint16_t pid, uint8_t address) {
+    if(*slot == NULL) {
+        struct libusb_device *dev = calloc(1, sizeof(struct libusb_device));
+        dev->bus_number = 0xFF; // No real bus uses this
+        dev->device_address = address;
+        dev->refcnt = 1; // Our own reference, never released
+        *slot = dev;
+    }
+    (*slot)->device_descriptor.idVendor = vid;
+    (*slot)->device_descriptor.idProduct = pid;
+    return *slot;
+}
+
 ssize_t API_EXPORTED libusb_get_device_list(libusb_context *ctx,
 	libusb_device ***list)
 {
@@ -495,41 +532,22 @@ ssize_t API_EXPORTED libusb_get_device_list(libusb_context *ctx,
     struct libusb_device **ret = calloc(filtered_len+true_len+1, sizeof(struct libusb_device*));
     struct libusb_device **p = ret;
 
-    // Add three new devices
+    // Emulated devices are created once and live forever (refcnt never reaches 0).
+    // Each one gets its own bus/address: hidapi builds its device "path" from
+    // bus:address:interface and opens every interface matching that path.
     if((piuioemu_mode & WITH_PIULXIO) || (piuioemu_mode & WITH_PIULXIO_2)) {
         PRINTF("  Adding PIULXIO\n");
-        struct libusb_device *dev = malloc(sizeof(struct libusb_device));
-        memset(dev, 0, sizeof(struct libusb_device));
-        if(piuioemu_mode & WITH_PIULXIO) dev->device_descriptor.idProduct = PIULXIO_PRODUCT_ID;
-        if(piuioemu_mode & WITH_PIULXIO_2) dev->device_descriptor.idProduct = PIULXIO_PRODUCT_ID_2;
-        dev->device_descriptor.idVendor = PIULXIO_VENDOR_ID;
-        dev->refcnt = 1;
-        *p = libusb_ref_device(dev);
-        p++;
+        *p++ = libusb_ref_device(fake_device(&fake_lxio, PIULXIO_VENDOR_ID,
+            (piuioemu_mode & WITH_PIULXIO_2) ? PIULXIO_PRODUCT_ID_2 : PIULXIO_PRODUCT_ID, 1));
     }
     if(piuioemu_mode & WITH_PIUIO) {
         PRINTF("  Adding PIUIO\n");
-        struct libusb_device *dev = malloc(sizeof(struct libusb_device));
-        memset(dev, 0, sizeof(struct libusb_device));
-        dev->device_descriptor.idProduct = PIUIO_PRODUCT_ID;
-        dev->device_descriptor.idVendor = PIUIO_VENDOR_ID;
-        dev->refcnt = 1;
-        *p = libusb_ref_device(dev);
-        p++;
+        *p++ = libusb_ref_device(fake_device(&fake_piuio, PIUIO_VENDOR_ID, PIUIO_PRODUCT_ID, 2));
     }
     if(piuioemu_mode & WITH_PIUIOBUTTON) {
         PRINTF("  Adding PIUIOBUTTON\n");
-        struct libusb_device *dev = malloc(sizeof(struct libusb_device));
-        memset(dev, 0, sizeof(struct libusb_device));
-        dev->device_descriptor.idProduct = PIUIOBUTTON_PRODUCT_ID;
-        dev->device_descriptor.idVendor = PIUIOBUTTON_VENDOR_ID;
-        dev->refcnt = 1;
-        *p = libusb_ref_device(dev);
-        p++;
+        *p++ = libusb_ref_device(fake_device(&fake_piuiobutton, PIUIOBUTTON_VENDOR_ID, PIUIOBUTTON_PRODUCT_ID, 3));
     }
-
-    // TODO: We are going to loss the true_list. If there is a potential memory leak, is here
-
 
     // Copy the rest just as it is
     if(true_len > 0) {
@@ -757,31 +775,28 @@ static int piulxio_helper_process_data_in(uint8_t* bytes, int size) {
     bytes_f[8] = bytes[8] = bytes_piuio[8] & bytes_j[1] & bytes_p[1] & bytes_t[1];
     bytes_f[9] = bytes[9] = bytes_piuio[9] & bytes_j[3] & bytes_p[3] & bytes_t[3];
     
-    // Frontal buttons
-    if(is_piuiob) {
+    // Frontal buttons. Two formats exist:
+    //  - LX bytes 10/11 (P1/P2), active low, panel order UL,UR,CN,DL,DR
+    //  - PIUIO button board byte 0: bit0 red (UL/UR), bit1 left (DL), bit2 right (DR),
+    //    bit3 green (CN), bits 4..7 the same for P2
+    // bytes_piuiob holds the board format, coming either from a real button board or
+    // derived from a real LXIO / the pads. Only convert it when it does not already
+    // come from a real LXIO, otherwise e.g. UL would come back as UL+UR.
+    {
+        uint8_t fb = bytes_jb[0] & bytes_pb[0] & bytes_tb[0];
+        if(!is_lxio) fb &= bytes_piuiob[0];
         bytes_fb[0] = bytes_piuiob[0] & bytes_jb[0] & bytes_pb[0] & bytes_tb[0];
         bytes_fb[1] = bytes_piuiob[1] & bytes_jb[1] & bytes_pb[1] & bytes_tb[1];
-            // From the info of the PIUIOBUTTON, we need to construct the LXIO version
-        bytes[10] = ((bytes_fb[0] & 0x01)? 0xFF:0xFC) & // UL/UR both on red button
-                    ((bytes_fb[0] & 0x02)? 0xFF:0xF7) & // DL on left button
-                    ((bytes_fb[0] & 0x04)? 0xFF:0xEF) & // DR on right button
-                    ((bytes_fb[0] & 0x08)? 0xFF:0xFB) ; // Center on green button
-        bytes[11] = ((bytes_fb[0] & 0x10)? 0xFF:0xFC) & // UL/UR both on red button
-                    ((bytes_fb[0] & 0x20)? 0xFF:0xF7) & // DL on left button
-                    ((bytes_fb[0] & 0x40)? 0xFF:0xEF) & // DR on right button
-                    ((bytes_fb[0] & 0x80)? 0xFF:0xFB) ; // Center on green button
-    }
-    else {
-        if((~bytes_piuio[10]) & 0x03) bytes_fb[0] &= 0xFE; // Red button on either UL/UR
-        if((~bytes_piuio[10]) & 0x04) bytes_fb[0] &= 0xF7; // Green on Center
-        if((~bytes_piuio[10]) & 0x08) bytes_fb[0] &= 0xFD; // Left on DL
-        if((~bytes_piuio[10]) & 0x10) bytes_fb[0] &= 0xFB; // Right on DR
-        if((~bytes_piuio[11]) & 0x03) bytes_fb[0] &= 0xEF; // Red button on either UL/UR
-        if((~bytes_piuio[11]) & 0x04) bytes_fb[0] &= 0x7F; // Green on Center
-        if((~bytes_piuio[11]) & 0x08) bytes_fb[0] &= 0xDF; // Left on DL
-        if((~bytes_piuio[11]) & 0x10) bytes_fb[0] &= 0xBF; // Right on DR
-        bytes[10] = bytes_piuio[10];
-        bytes[11] = bytes_piuio[11];
+        bytes[10] = bytes_piuio[10] &
+                    ((fb & 0x01)? 0xFF:0xFC) & // UL/UR both on red button
+                    ((fb & 0x02)? 0xFF:0xF7) & // DL on left button
+                    ((fb & 0x04)? 0xFF:0xEF) & // DR on right button
+                    ((fb & 0x08)? 0xFF:0xFB) ; // Center on green button
+        bytes[11] = bytes_piuio[11] &
+                    ((fb & 0x10)? 0xFF:0xFC) & // UL/UR both on red button
+                    ((fb & 0x20)? 0xFF:0xF7) & // DL on left button
+                    ((fb & 0x40)? 0xFF:0xEF) & // DR on right button
+                    ((fb & 0x80)? 0xFF:0xFB) ; // Center on green button
     }
     bytes_f[10] = bytes[10];
     bytes_f[11] = bytes[11];
@@ -795,8 +810,30 @@ static int piulxio_helper_process_data_in(uint8_t* bytes, int size) {
     return ret;
 }
 
+static int lx_skip_next = 0; // A reply came late: skip one so the game's queue drains
+static void lx_complete_pending_in_now(void);
+static void lx_note_out(void) {
+    pthread_mutex_lock(&piuioemu_queue_mutex);
+    lx_host_writes = 1;
+    clock_gettime(CLOCK_MONOTONIC, &lx_last_out);
+    if(lx_skip_next) lx_skip_next = 0;
+    else lx_out_seq++;
+    pthread_cond_broadcast(&piuioemu_queue_cond);
+    pthread_mutex_unlock(&piuioemu_queue_mutex);
+    // Answer right away, before the game even starts its 1 ms hid_read wait
+    lx_complete_pending_in_now();
+}
+
 static int piulxio_helper_process_data_out(uint8_t* data, int size) {
     int ret = min(16, size);
+    if(ret < 16) {
+        // hidapi always writes the full report, but be safe with short ones
+        uint8_t full[16] = {0};
+        memcpy(full, data, ret);
+        memcpy(bytes_l, full, 16);
+        lx_note_out();
+        return ret;
+    }
 
     bytes_l[0] = data[0];
     bytes_l[1] = data[1];
@@ -815,6 +852,7 @@ static int piulxio_helper_process_data_out(uint8_t* data, int size) {
     bytes_l[14] = data[14];
     bytes_l[15] = data[15];
 
+    lx_note_out();
     return ret;
 }
 
@@ -871,22 +909,26 @@ static int piulxio_libusb_control_transfer(
     {
         // From do_control_to_usb: can be 0x300, or param_2 | 0xff | 0x300
         if (wValue == 0x300)
-        { // Get the control descriptor
-            int ret = min(4, wLength);
+        { // Supported languages
+            int ret = min(string0[0], wLength);
             memcpy(data, string0, ret);
             return ret;
         }
         else if (wValue == 0x301)
         {
-            int ret = min(sizeof(string1), wLength);
+            int ret = min(string1[0], wLength);
             memcpy(data, string1, ret);
             return ret;
         }
         else if (wValue == 0x302)
         {
-            int ret = min(sizeof(string2), wLength);
+            int ret = min(string2[0], wLength);
             memcpy(data, string2, ret);
             return ret;
+        }
+        else if ((wValue >> 8) == LIBUSB_DT_STRING)
+        {
+            return LIBUSB_ERROR_PIPE; // No such string (the real one has no serial)
         }
         else if (wValue == 0x2200)
         {
@@ -903,13 +945,15 @@ static int piulxio_libusb_control_transfer(
             return ret;
         }
     }
-    else if (wIndex == 0 && request_type == 0xA1 && bRequest == PIULXIO_HID_SET_REPORT)
+    else if (wIndex == 0 && request_type == 0x21 && bRequest == PIULXIO_HID_SET_REPORT)
     {
+        // SET_REPORT(Output): hidapi's hid_write() fallback when there is no OUT endpoint
         // PRINTF("push data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
         return piulxio_helper_process_data_out(data, wLength);
     }
-    else if (wIndex == 0 && request_type == 0x21 && bRequest == PIULXIO_HID_SET_REPORT)
+    else if (wIndex == 0 && request_type == 0xA1 && bRequest == PIULXIO_HID_GET_REPORT)
     {
+        // GET_REPORT(Input)
         // PRINTF("recv data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
         return piulxio_helper_process_data_in(data, wLength);
     }
@@ -928,12 +972,12 @@ static int piuio_libusb_control_transfer(
     {
         // TODO: Fill acordingly
     }
-    else if ((request_type & USB_DIR_IN) && (request_type & USB_TYPE_VENDOR) && (bRequest & PIUIO_CTL_REQ))
+    else if (request_type == (USB_DIR_IN | USB_TYPE_VENDOR) && bRequest == PIUIO_CTL_REQ)
     {
         // PRINTF("recv data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
         return piuio_helper_process_data_in(data, wLength);
     }
-    else if ((request_type & USB_DIR_OUT) && (request_type & USB_TYPE_VENDOR) && (bRequest & PIUIO_CTL_REQ))
+    else if (request_type == (USB_DIR_OUT | USB_TYPE_VENDOR) && bRequest == PIUIO_CTL_REQ)
     {
         // PRINTF("push data %x %x %x %x %x\r\n", request_type, bRequest, wValue, wIndex, wLength);
         return piuio_helper_process_data_out(data, wLength);
@@ -953,9 +997,15 @@ static int piuiobutton_libusb_control_transfer(
     {
         // TODO: Fill acordingly
     }
-    else 
+    else if (request_type & USB_DIR_IN)
     {
+        // The game reads the button board with 0xC0/0xAE (8 bytes)
         return piuiobutton_helper_process_data(data, wLength);
+    }
+    else
+    {
+        // Lamp write from the game (0x40/0xAE): accept it, nothing to drive
+        return wLength;
     }
     PRINTF("Unknown request: %x %x %x %x %x\n", request_type, bRequest, wValue, wIndex, wLength);
     return 0;
@@ -1011,11 +1061,11 @@ int API_EXPORTED libusb_interrupt_transfer(libusb_device_handle *dev_handle,
        dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
         if((endpoint & 0x7F) == PIULXIO_ENDPOINT_IN) {
             *transferred = piulxio_helper_process_data_in(data, length);
-            return *transferred;
+            return LIBUSB_SUCCESS;
         }
         else if(endpoint == PIULXIO_ENDPOINT_OUT) {
             *transferred = piulxio_helper_process_data_out(data, length);
-            return *transferred;
+            return LIBUSB_SUCCESS;
         }
         else {
             PRINTF("PIULXIO: Unknown endpoint %d\n", (int)endpoint);
@@ -1028,11 +1078,11 @@ int API_EXPORTED libusb_interrupt_transfer(libusb_device_handle *dev_handle,
        dev->device_descriptor.idVendor == PIUIO_VENDOR_ID) {
         if((endpoint & 0x7F) == PIUIO_ENDPOINT_IN) {
             *transferred = piuio_helper_process_data_in(data, length);
-            return *transferred;
+            return LIBUSB_SUCCESS;
         }
         else if(endpoint == PIUIO_ENDPOINT_OUT) {
             *transferred = piuio_helper_process_data_out(data, length);
-            return *transferred;
+            return LIBUSB_SUCCESS;
         }
         else {
             PRINTF("PIUIO (libusb_interrupt_transfer): Unknown endpoint %d\n", (int)endpoint);
@@ -1045,11 +1095,11 @@ int API_EXPORTED libusb_interrupt_transfer(libusb_device_handle *dev_handle,
        dev->device_descriptor.idVendor == PIUIOBUTTON_VENDOR_ID) {
         if((endpoint & 0x7F) == PIUIOBUTTON_ENDPOINT_IN) {
             *transferred = piuiobutton_helper_process_data(data, length);
-            return *transferred;
+            return LIBUSB_SUCCESS;
         }
         else if(endpoint == PIUIOBUTTON_ENDPOINT_OUT) {
             *transferred = piuiobutton_helper_process_data(data, length);
-            return *transferred;
+            return LIBUSB_SUCCESS;
         }
         else {
             PRINTF("PIUIOBUTTON (libusb_interrupt_transfer): Unknown endpoint %d\n", (int)endpoint);
@@ -1092,12 +1142,29 @@ static int dummy_response(libusb_device_handle *dev_handle) {
 
 
 
+// Transfers taken out of the queue by the handle_events pass that is running now.
+// A cancel arriving for one of them is applied when its callback resubmits it.
+#define MAX_BATCH 64
+static struct libusb_transfer *batch[MAX_BATCH];
+static int batch_cancel[MAX_BATCH];
+static int batch_len = 0;
+// Same for the transfer being completed from the game's write path
+static struct libusb_transfer *sync_inflight = NULL;
+static int sync_cancel = 0;
+
 int API_EXPORTED libusb_submit_transfer(struct libusb_transfer *transfer) {
 
     if(transfer == NULL) goto true_libusb_submit_transfer_call;
 
     if(dummy_response(transfer->dev_handle) == 0) {
-        submit_to_queue(piuioemu_queue, transfer);
+        pthread_mutex_lock(&piuioemu_queue_mutex);
+        int cancelled = 0;
+        for(int i = 0; i < batch_len; i++)
+            if(batch[i] == transfer && batch_cancel[i]) { cancelled = 1; batch_cancel[i] = 0; }
+        if(transfer == sync_inflight && sync_cancel) { cancelled = 1; sync_cancel = 0; }
+        submit_to_queue(cancelled ? piuioemu_cancelled : piuioemu_queue, transfer);
+        pthread_cond_broadcast(&piuioemu_queue_cond);
+        pthread_mutex_unlock(&piuioemu_queue_mutex);
         return 0;
     }
 
@@ -1110,125 +1177,237 @@ int API_EXPORTED libusb_cancel_transfer(struct libusb_transfer *transfer) {
     if(transfer == NULL) goto true_libusb_cancel_transfer_call;
 
     if(dummy_response(transfer->dev_handle) == 0) {
-        remove_from_queue(piuioemu_queue, transfer);
-        return 0;
+        int r = LIBUSB_ERROR_NOT_FOUND;
+        pthread_mutex_lock(&piuioemu_queue_mutex);
+        if(remove_from_queue(piuioemu_queue, transfer)) {
+            // Completed as LIBUSB_TRANSFER_CANCELLED by the next libusb_handle_events
+            submit_to_queue(piuioemu_cancelled, transfer);
+            r = 0;
+        }
+        else {
+            for(int i = 0; i < batch_len; i++)
+                if(batch[i] == transfer) { batch_cancel[i] = 1; r = 0; }
+            if(transfer == sync_inflight) { sync_cancel = 1; r = 0; }
+        }
+        pthread_cond_broadcast(&piuioemu_queue_cond);
+        pthread_mutex_unlock(&piuioemu_queue_mutex);
+        return r;
     }
 true_libusb_cancel_transfer_call:
     return true_libusb_cancel_transfer(transfer);
 }
 
-/*void LIBUSB_CALL libusb_free_transfer(struct libusb_transfer *transfer) {
-    PRINTF("CKDUR: libusb_free_transfer (1.0) %d\n", __LINE__);
-    if(transfer) {
-        free(transfer);
+static int is_dev(libusb_device *dev, uint16_t vid, uint16_t pid) {
+    return dev->device_descriptor.idVendor == vid && dev->device_descriptor.idProduct == pid;
+}
+
+static int is_lxio_dev(libusb_device *dev) {
+    return is_dev(dev, PIULXIO_VENDOR_ID, PIULXIO_PRODUCT_ID) || is_dev(dev, PIULXIO_VENDOR_ID, PIULXIO_PRODUCT_ID_2);
+}
+
+static int64_t elapsed_us(const struct timespec *from) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return (int64_t)(now.tv_sec - from->tv_sec) * 1000000 + (now.tv_nsec - from->tv_nsec) / 1000;
+}
+
+// Decides if a pending LXIO IN transfer completes now. Returns 1 and fills the
+// buffer if it does. See the pacing notes at lx_out_seq
+static int lx_complete_in(struct libusb_transfer *transfer) {
+    int answer = 0;
+    pthread_mutex_lock(&piuioemu_queue_mutex);
+    if(lx_out_seq != lx_in_seq) {
+        lx_in_seq = lx_out_seq; // Several OUTs before an IN are answered once
+        answer = 1;
+        // The game only waits 1 ms after its write. A later reply stays queued and
+        // the game would read one report behind from now on.
+        if(elapsed_us(&lx_last_out) > 900) lx_skip_next = 1;
     }
-}*/
+    else if(lx_host_writes && elapsed_us(&lx_last_out) > LX_HOST_IDLE_US) {
+        lx_host_writes = 0;
+    }
+    int idle = !lx_host_writes;
+    pthread_mutex_unlock(&piuioemu_queue_mutex);
+    if(!answer && !idle) return 0;
+
+    uint8_t tmp[64];
+    int len = transfer->length > (int)sizeof(tmp) ? (int)sizeof(tmp) : transfer->length;
+    int n = piulxio_helper_process_data_in(tmp, len);
+    if(!answer && memcmp(tmp, lx_last_in, n) == 0) return 0; // Idle host: only changes
+    memcpy(transfer->buffer, tmp, n);
+    memcpy(lx_last_in, tmp, n);
+    transfer->actual_length = n;
+    return 1;
+}
+
+static int process_emulated_transfer(struct libusb_transfer *transfer) {
+    libusb_device *dev = transfer->dev_handle->dev;
+    if(transfer->type != LIBUSB_TRANSFER_TYPE_INTERRUPT) {
+        PRINTF("piuio_emu: unsupported async transfer type %d\n", (int)transfer->type);
+        transfer->status = LIBUSB_TRANSFER_ERROR;
+        transfer->actual_length = 0;
+        return 1;
+    }
+    transfer->status = LIBUSB_TRANSFER_COMPLETED;
+
+    if(is_lxio_dev(dev)) {
+        if((transfer->endpoint & 0x7F) == PIULXIO_ENDPOINT_IN)
+            return lx_complete_in(transfer);
+        else if(transfer->endpoint == PIULXIO_ENDPOINT_OUT)
+            transfer->actual_length = piulxio_helper_process_data_out(transfer->buffer, transfer->length);
+        else {
+            PRINTF("PIULXIO (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
+            transfer->status = LIBUSB_TRANSFER_STALL;
+        }
+        return 1;
+    }
+
+    if(is_dev(dev, PIUIO_VENDOR_ID, PIUIO_PRODUCT_ID)) {
+        if((transfer->endpoint & 0x7F) == PIUIO_ENDPOINT_IN)
+            transfer->actual_length = piuio_helper_process_data_in(transfer->buffer, transfer->length);
+        else if(transfer->endpoint == PIUIO_ENDPOINT_OUT)
+            transfer->actual_length = piuio_helper_process_data_out(transfer->buffer, transfer->length);
+        else {
+            PRINTF("PIUIO (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
+            transfer->status = LIBUSB_TRANSFER_STALL;
+        }
+        return 1;
+    }
+
+    if(is_dev(dev, PIUIOBUTTON_VENDOR_ID, PIUIOBUTTON_PRODUCT_ID)) {
+        if((transfer->endpoint & 0x7F) == PIUIOBUTTON_ENDPOINT_IN)
+            transfer->actual_length = piuiobutton_helper_process_data(transfer->buffer, transfer->length);
+        else if(transfer->endpoint == PIUIOBUTTON_ENDPOINT_OUT)
+            transfer->actual_length = transfer->length; // Lamps, nothing to drive
+        else {
+            PRINTF("PIUIOBUTTON (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
+            transfer->status = LIBUSB_TRANSFER_STALL;
+        }
+        return 1;
+    }
+    transfer->status = LIBUSB_TRANSFER_NO_DEVICE;
+    return 1;
+}
+
+// Called from the game's write path: if the IN transfer of the read thread is
+// sitting in our queue, complete it from here (hidapi's callback only takes its own
+// mutex and resubmits). If it is being processed by libusb_handle_events right now,
+// that pass picks up the new OUT through lx_out_seq instead.
+static void lx_complete_pending_in_now(void) {
+    struct libusb_transfer *found = NULL;
+    pthread_mutex_lock(&piuioemu_queue_mutex);
+    for(Node *n = piuioemu_queue->front; n != NULL; n = n->next) {
+        struct libusb_transfer *t = n->data;
+        if(t->dev_handle && is_lxio_dev(t->dev_handle->dev) &&
+           t->type == LIBUSB_TRANSFER_TYPE_INTERRUPT && (t->endpoint & 0x80)) { found = t; break; }
+    }
+    if(found) {
+        remove_from_queue(piuioemu_queue, found);
+        sync_inflight = found;
+        sync_cancel = 0;
+    }
+    pthread_mutex_unlock(&piuioemu_queue_mutex);
+    if(!found) return;
+
+    found->status = LIBUSB_TRANSFER_COMPLETED;
+    if(!lx_complete_in(found)) {
+        // Nothing to answer (e.g. skipped to drain): put it back (or cancel it)
+        pthread_mutex_lock(&piuioemu_queue_mutex);
+        submit_to_queue(sync_cancel ? piuioemu_cancelled : piuioemu_queue, found);
+        sync_inflight = NULL;
+        sync_cancel = 0;
+        pthread_cond_broadcast(&piuioemu_queue_cond);
+        pthread_mutex_unlock(&piuioemu_queue_mutex);
+        return;
+    }
+    if(found->callback) found->callback(found); // Normally resubmits it
+    pthread_mutex_lock(&piuioemu_queue_mutex);
+    sync_inflight = NULL;
+    sync_cancel = 0;
+    pthread_mutex_unlock(&piuioemu_queue_mutex);
+}
 
 int API_EXPORTED libusb_handle_events(libusb_context *ctx) {
     struct timeval tv;
+    int completed = 0;
+    int pending = 0;
     usbi_mutex_lock(&piuioemu_mutex);
-    Queue* queue = piuioemu_queue;
 
-    if (queue->front == NULL) {
-        goto end_handle_events;
+    // Take everything that is queued now. Callbacks may resubmit (or cancel) while
+    // we process, which only touches the queues under piuioemu_queue_mutex.
+    pthread_mutex_lock(&piuioemu_queue_mutex);
+    batch_len = 0;
+    while(piuioemu_queue->front != NULL && batch_len < MAX_BATCH) {
+        Node *n = piuioemu_queue->front;
+        piuioemu_queue->front = n->next;
+        if(piuioemu_queue->front == NULL) piuioemu_queue->rear = NULL;
+        batch_cancel[batch_len] = 0;
+        batch[batch_len++] = n->data;
+        free(n);
     }
+    int count = batch_len;
+    pthread_mutex_unlock(&piuioemu_queue_mutex);
 
-    // Calculate the size of the queue
-    int count = 0;
-    Node* temp = queue->front;
-    while (temp != NULL) {
-        count++;
-        temp = temp->next;
-    }
-
-    // Create an array to store the data
-    struct libusb_transfer ** eventList = malloc(count * sizeof(struct libusb_transfer *));
-
-    // Dequeue elements into the array
-    int index = 0;
-    while (queue->front != NULL) {
-        temp = queue->front;
-        eventList[index++] = temp->data;
-
-        // Move the front to the next node
-        queue->front = queue->front->next;
-
-        // Free the old front node
-        free(temp);
-    }
-
-    // Reset rear to NULL when the queue is empty
-    queue->rear = NULL;
-
-     // Process the list
-    for (int i = 0; i < count; i++) {
-        struct libusb_transfer *transfer = eventList[i];
+    for(int i = 0; i < count; i++) {
+        struct libusb_transfer *transfer = batch[i];
         if(transfer->dev_handle == NULL) continue;
 
-        libusb_device *dev;
-        dev = transfer->dev_handle->dev;
-
-        if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
-                dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
-            if(transfer->type != LIBUSB_TRANSFER_TYPE_INTERRUPT) continue;
-            transfer->status = LIBUSB_TRANSFER_COMPLETED;
-
-            if((transfer->endpoint & 0x7F) == PIULXIO_ENDPOINT_IN)
-                transfer->actual_length = piulxio_helper_process_data_in(transfer->buffer, transfer->length);
-            else if(transfer->endpoint == PIULXIO_ENDPOINT_OUT)
-                transfer->actual_length = piulxio_helper_process_data_out(transfer->buffer, transfer->length);
-            else {
-                PRINTF("PIULXIO (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
-            }
-
-            if (transfer->callback)
-                transfer->callback(transfer);
+        pthread_mutex_lock(&piuioemu_queue_mutex);
+        int cancel = batch_cancel[i];
+        batch_cancel[i] = 0;
+        pthread_mutex_unlock(&piuioemu_queue_mutex);
+        if(cancel) {
+            transfer->status = LIBUSB_TRANSFER_CANCELLED;
+            transfer->actual_length = 0;
+        }
+        else if(!process_emulated_transfer(transfer)) {
+            // Not ready yet, keep it pending (in its original order)
+            pthread_mutex_lock(&piuioemu_queue_mutex);
+            submit_to_queue(piuioemu_queue, transfer);
+            pthread_mutex_unlock(&piuioemu_queue_mutex);
+            pending++;
             continue;
         }
-        
-        if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
-                dev->device_descriptor.idVendor == PIUIO_VENDOR_ID) {
-            if(transfer->type != LIBUSB_TRANSFER_TYPE_INTERRUPT) continue;
-            transfer->status = LIBUSB_TRANSFER_COMPLETED;
-            if((transfer->endpoint & 0x7F) == PIUIO_ENDPOINT_IN)
-                transfer->actual_length = piuio_helper_process_data_in(transfer->buffer, transfer->length);
-            else if(transfer->endpoint == PIUIO_ENDPOINT_OUT)
-                transfer->actual_length = piuio_helper_process_data_out(transfer->buffer, transfer->length);
-            else {
-                PRINTF("PIUIO (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
-            }
-            if (transfer->callback)
-                transfer->callback(transfer);
-            continue;
-        }
-        
-        if(dev->device_descriptor.idProduct == PIUIOBUTTON_PRODUCT_ID && 
-                dev->device_descriptor.idVendor == PIUIOBUTTON_VENDOR_ID) {
-            if(transfer->type != LIBUSB_TRANSFER_TYPE_INTERRUPT) continue;
-            transfer->status = LIBUSB_TRANSFER_COMPLETED;
-            if((transfer->endpoint & 0x7F) == PIUIOBUTTON_ENDPOINT_IN)
-                transfer->actual_length = piuiobutton_helper_process_data(transfer->buffer, transfer->length);
-            else if(transfer->endpoint == PIUIOBUTTON_ENDPOINT_OUT)
-                transfer->actual_length = piuiobutton_helper_process_data(transfer->buffer, transfer->length);
-            else {
-                PRINTF("PIUIOBUTTON (libusb_handle_events): Unknown endpoint %d\n", (int)transfer->endpoint);
-            }
-            if (transfer->callback) 
-                transfer->callback(transfer);
-            continue;
-        }
+        completed++;
+        if (transfer->callback)
+            transfer->callback(transfer);
     }
 
-    free(eventList);
+    if(!completed && pending) {
+        // Nothing to report yet: sleep until the game writes (or 1 ms) instead of spinning
+        struct timespec until;
+        clock_gettime(CLOCK_REALTIME, &until);
+        until.tv_nsec += 1000000;
+        if(until.tv_nsec >= 1000000000) { until.tv_sec++; until.tv_nsec -= 1000000000; }
+        pthread_mutex_lock(&piuioemu_queue_mutex);
+        if(lx_out_seq == lx_in_seq && piuioemu_cancelled->front == NULL)
+            pthread_cond_timedwait(&piuioemu_queue_cond, &piuioemu_queue_mutex, &until);
+        pthread_mutex_unlock(&piuioemu_queue_mutex);
+    }
 
-end_handle_events:
-    memset(&tv, 0, sizeof(struct timeval));
-    int r = 0;
-    r = libusb_handle_events_timeout_completed(ctx, &tv, NULL);
-
+    // Transfers cancelled while they were queued (also the ones cancelled while we waited)
+    pthread_mutex_lock(&piuioemu_queue_mutex);
+    batch_len = 0;
+    Node *c = piuioemu_cancelled->front;
+    piuioemu_cancelled->front = piuioemu_cancelled->rear = NULL;
+    pthread_mutex_unlock(&piuioemu_queue_mutex);
+    while(c != NULL) {
+        Node *next = c->next;
+        struct libusb_transfer *transfer = c->data;
+        free(c);
+        transfer->status = LIBUSB_TRANSFER_CANCELLED;
+        transfer->actual_length = 0;
+        completed++;
+        if (transfer->callback)
+            transfer->callback(transfer);
+        c = next;
+    }
     usbi_mutex_unlock(&piuioemu_mutex);
 
-    return r; //true_libusb_handle_events(ctx);
+    // Real devices
+    memset(&tv, 0, sizeof(struct timeval));
+    if(!count) tv.tv_usec = 10000; // No emulated transfers at all: let libusb block a bit
+    return libusb_handle_events_timeout_completed(ctx, &tv, NULL);
 }
 
 int API_EXPORTED libusb_kernel_driver_active(libusb_device_handle *dev_handle,

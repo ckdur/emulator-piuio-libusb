@@ -3,7 +3,8 @@
 
 extern unsigned char bytes_piuio[16];
 extern unsigned char bytes_piuiob[2];
-extern unsigned int is_piuiob;
+extern unsigned int is_piuiob; // A real PIUIO button board is connected
+extern unsigned int is_lxio;   // A real LXIO is connected
 
 void init_piuio(void);
 void poll_piuio(void);

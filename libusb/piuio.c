@@ -68,7 +68,7 @@ void init_piuio(void){
         // Check if it matches the target device
         if ((desc.idVendor == PIULXIO_VENDOR_ID && (desc.idProduct == PIULXIO_PRODUCT_ID || desc.idProduct == PIULXIO_PRODUCT_ID_2)) ||
             (desc.idVendor == PIUIO_VENDOR_ID && desc.idProduct == PIUIO_PRODUCT_ID) ||
-            (desc.idVendor == PIUIOBUTTON_VENDOR_ID && desc.idProduct == PIUIOBUTTON_VENDOR_ID)
+            (desc.idVendor == PIUIOBUTTON_VENDOR_ID && desc.idProduct == PIUIOBUTTON_PRODUCT_ID)
             ) {
             PRINTF("Device found: Vendor ID=0x%04x, Product ID=0x%04x\n", desc.idVendor, desc.idProduct);
             libusb_device_handle *dev_handle = NULL;
@@ -92,12 +92,14 @@ void init_piuio(void){
                 piuio = realloc(piuio, npiuio*sizeof(libusb_device_handle *));
             }
             piuio[npiuio-1] = dev_handle;
-            if(desc.idVendor == PIUIOBUTTON_VENDOR_ID && desc.idProduct == PIUIOBUTTON_VENDOR_ID)
-                is_lxio = 1; // Enable this
+            // is_piuiob: a real PIUIO button board is present
+            // is_lxio: a real LXIO is present (its front buttons replace the button board)
+            if(desc.idVendor == PIUIOBUTTON_VENDOR_ID && desc.idProduct == PIUIOBUTTON_PRODUCT_ID)
+                is_piuiob = 1;
             if(desc.idVendor == PIULXIO_VENDOR_ID && desc.idProduct == PIULXIO_PRODUCT_ID)
-                is_piuiob = 1; // Enable this
+                is_lxio = 1;
             if(desc.idVendor == PIULXIO_VENDOR_ID && desc.idProduct == PIULXIO_PRODUCT_ID_2)
-                is_piuiob = 1; // Enable this
+                is_lxio = 1;
         }
     }
     PRINTF("PIUIO init done\n");
@@ -124,21 +126,27 @@ void poll_piuio(void){
         if((dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID || dev->device_descriptor.idProduct == PIULXIO_PRODUCT_ID_2) && 
             dev->device_descriptor.idVendor == PIULXIO_VENDOR_ID) {
 
+            // LX output = PIUIO lamp bytes 0..3 without mux bits, then the
+            // front button lamps (4, 5). The rest is always 0 on the game side.
             unsigned char datout[16];
-            memset(datout, 0, 16);
-            datout[14] = 0xFF;
-            datout[15] = 0xFF;
             int transferred;
             memcpy(datout, bytes_l, 16);
+            datout[0] &= 0xFC;
+            datout[2] &= 0xFC;
             PRINTF("lxio: Out endp\n");
             true_libusb_interrupt_transfer(dev_handle,
                 PIULXIO_ENDPOINT_OUT, datout, 16,
                 &transferred, 1000);
             PRINTF("lxio: In endp\n");
-            true_libusb_interrupt_transfer(dev_handle,
-                0x80 | PIULXIO_ENDPOINT_IN, poll_bytes_piuio, 16,
-                &transferred, 1000);
-            
+            unsigned char datin[16];
+            if(true_libusb_interrupt_transfer(dev_handle,
+                0x80 | PIULXIO_ENDPOINT_IN, datin, 16,
+                &transferred, 1000) == 0 && transferred > 0) {
+                // Keep the last known state on timeouts/short reads
+                memcpy(poll_bytes_piuio, datin, transferred > 16 ? 16 : transferred);
+            }
+
+            if(is_piuiob) goto lxio_done; // A real button board has priority
             poll_bytes_piuiob[0] = 0xFF;
             poll_bytes_piuiob[1] = 0xFF;
 
@@ -159,6 +167,7 @@ void poll_piuio(void){
             if((~poll_bytes_piuio[11]) & 0x04) poll_bytes_piuiob[0] &= 0x7F; // Green on Center
             if((~poll_bytes_piuio[11]) & 0x08) poll_bytes_piuiob[0] &= 0xDF; // Left on DL
             if((~poll_bytes_piuio[11]) & 0x10) poll_bytes_piuiob[0] &= 0xBF; // Right on DR
+lxio_done:;
         }
         
         if(dev->device_descriptor.idProduct == PIUIO_PRODUCT_ID && 
@@ -194,12 +203,14 @@ void poll_piuio(void){
         if(dev->device_descriptor.idProduct == PIUIOBUTTON_PRODUCT_ID && 
             dev->device_descriptor.idVendor == PIUIOBUTTON_VENDOR_ID) {
                 
-            unsigned char dat[16];
-            int transferred;
-            true_libusb_interrupt_transfer(dev_handle,
-                PIUIOBUTTON_ENDPOINT_OUT, dat, 16,
-                &transferred, 1000);
-            memcpy(poll_bytes_piuiob, dat, 2);
+            // The game itself talks to the button board with the PIUIO vendor
+            // request (0xC0/0xAE, 8 bytes), not with interrupt transfers
+            unsigned char dat[8];
+            memset(dat, 0xFF, sizeof(dat));
+            if(true_libusb_control_transfer(dev_handle,
+                USB_DIR_IN | USB_TYPE_VENDOR, PIUIO_CTL_REQ,
+                0, 0, dat, 8, 1000) >= 2)
+                memcpy(poll_bytes_piuiob, dat, 2);
         }
 
         if(piuioemu_mode & EMU_PROPAGATE) {
