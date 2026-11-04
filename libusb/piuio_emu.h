@@ -49,6 +49,10 @@ extern unsigned char bytes_l[16];
 extern unsigned char bytes_f[16];
 extern int piuioemu_mode;
 
+// Called by the menu host process: disables the TEST-hold-5-seconds
+// process-kill for this process only (see piuio_emu.c).
+void libusb_piuio_report_menu(void);
+
 #define WITH_PIULXIO 0x1
 #define WITH_PIUIO 0x2
 #define WITH_PIUIOBUTTON 0x4

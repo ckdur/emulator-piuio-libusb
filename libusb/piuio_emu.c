@@ -444,6 +444,18 @@ static void init_piuio_emu(void) {
     pthread_create(&thread_poll, NULL, thread_poll_func, NULL);
 }
 
+// The TEST button held for 5 seconds kills the process (that is how a game
+// hands control back to the boot script, which relaunches the menu). The
+// menu itself must NOT be killed that way: exiting the menu only makes the
+// boot script relaunch it, in a pointless loop. The menu tells us it is the
+// menu through libusb_piuio_report_menu() and we then leave the process
+// alive on a TEST hold.
+static int piuioemu_menu_process = 0;
+void API_EXPORTED libusb_piuio_report_menu(void) {
+    piuioemu_menu_process = 1;
+    PRINTF("piuio_emu: menu process reported, TEST-hold exit disabled\n");
+}
+
 time_t start_time = 0;
 bool condition_met = false;
 void* thread_poll_func(void* a) {
@@ -465,13 +477,20 @@ void* thread_poll_func(void* a) {
                 PRINTF("TEST hold ...\n");
             }
             else if (time(NULL) - start_time >= 5) {
-                // If condition is continuously met for 5 seconds, exit the loop
-                thread_poll_done = 1;
-                PRINTF("TEST held 5 seconds. Exiting ...\n");
-                exit(0);
-                abort();
-                *((int*)NULL) = 0; // crash it
-                return NULL;
+                if(piuioemu_menu_process) {
+                    // The menu reported itself. Keep it running.
+                    PRINTF("TEST held 5 seconds, but this is the menu: staying alive\n");
+                    condition_met = false;
+                }
+                else {
+                    // If condition is continuously met for 5 seconds, exit the loop
+                    thread_poll_done = 1;
+                    PRINTF("TEST held 5 seconds. Exiting ...\n");
+                    exit(0);
+                    abort();
+                    *((int*)NULL) = 0; // crash it
+                    return NULL;
+                }
             }
         }
         else {
