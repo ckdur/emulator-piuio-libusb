@@ -10,6 +10,7 @@
 #include <inttypes.h>
 
 #include <sys/mman.h>
+#include "../../../../elfloader/sigscan.h"
 #define UNPROTECT(addr,len) (mprotect((void*)(addr-(addr%len)),len,PROT_READ|PROT_WRITE|PROT_EXEC))
 
 // NOTE: For the name, search for "ANDAMIRO CO"
@@ -897,13 +898,53 @@ static void try_get_version_3(struct autoplay_construct* con) {
     return;
 }
 
+/* The game executable, parsed once.  The name/version addresses in the table
+ * are per build; when they do not fit, the same strings are searched for in
+ * the loaded image instead. */
+static struct sigscan_image autoplay_image;
+static int autoplay_image_tried = 0;
+static int autoplay_image_ok = 0;
+
+static struct sigscan_image* autoplay_get_image(void) {
+    if(!autoplay_image_tried) {
+        /* Only the game process has an executable at the ET_EXEC link
+         * address; do not fault if libusb was loaded somewhere else. */
+        autoplay_image_ok = memcheck((void*)(uintptr_t)SIGSCAN_MAIN_BASE) == 0 &&
+                            sigscan_init_main(&autoplay_image);
+        autoplay_image_tried = 1;
+    }
+    return autoplay_image_ok ? &autoplay_image : NULL;
+}
+
+/* Does the running game carry this construct's name (and version, when the
+ * construct requires one)?  On a hit the table entry is re-pointed at the
+ * strings found in the image. */
+static int autoplay_match_in_image(struct sigscan_image* img, struct autoplay_construct* con) {
+    const unsigned char* name;
+    const unsigned char* ver = NULL;
+
+    if(img == NULL || con->cmp_name == NULL) return 0;
+    name = sigscan_find_cstr(img, con->cmp_name);
+    if(name == NULL) return 0;
+    if(con->cmp_ver != NULL && con->cmp_ver[0] != '\0') {
+        ver = sigscan_find_str(img, con->cmp_ver);
+        if(ver == NULL) return 0;
+    }
+    con->name = (char*)name;
+    if(ver != NULL) con->ver = (char*)ver;
+    return 1;
+}
+
 void check_autoplay(void) {
+    struct sigscan_image* img = autoplay_get_image();
     for(int i = 0; i < size_all_constructs; i++) {
         struct autoplay_construct* con = &all_contstructs[i];
-        if(memcheck(con->name) == 0 && memcheck(con->ver) == 0 && 
-            strcmp(con->name, con->cmp_name) == 0 && 
-            memcmp(con->ver, con->cmp_ver, strlen(con->cmp_ver)) == 0) {
-        
+        int matched = memcheck(con->name) == 0 && memcheck(con->ver) == 0 &&
+            strcmp(con->name, con->cmp_name) == 0 &&
+            memcmp(con->ver, con->cmp_ver, strlen(con->cmp_ver)) == 0;
+        if(!matched)
+            matched = autoplay_match_in_image(img, con);
+        if(matched) {
             report_autoplay(&all_contstructs[i]);
             if(auto_available) break;
         }
