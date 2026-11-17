@@ -651,8 +651,35 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0xab7e698,
         .p2_a = (void*)0xab9f8c8,
     },
+    // PIU PRIME2 v05_0 (the full-network build; see prime2_fix/NETWORK_FIX.md)
+    /*
+        Same autoplay construct as v2.05.1, re-derived for the 2.05.0 build.
+        The PLAY struct lives at a different .bss address here, so the judgment
+        slot had to be found fresh (objdump on both ELFs, not a fixed delta).
+        2.05.0 judgment-apply snippet (= 2.05.1 FUN_080f2540 site), at 0x80d4218:
+
+            if ((&DAT_0e32a704)[p * 0x849f] == -1) {
+              if ((*(int *)(&DAT_0e32a700 + p * 0x2127c) != -1) &&
+                  ((DAT_0e1fbd08 >> (p & 0x1f) & 1) != 0)) FUN_080ab4d0();
+            } else if ((DAT_0e1fbd08 >> (p & 0x1f) & 1) != 0) FUN_080ab4d0();
+
+        Verified in objdump: judgment slot +4 read at 0x80d19ca/0x80d1a05,
+        reset `movl $0x0,0xe32a700` at 0x80dbb62 (P2 `...,0xe34b97c` at 0x80dbb8d),
+        mask DAT_0e1fbd08 (= demo_var+4, as 2.05.1 0xaaf0b84/88), judge fn
+        0x80ab4d0 called 3x. p2_a = p1_a + 0x2127c = 0xe32a704 + 0x2127c.
+    */
+    {
+        .version = 0,
+        .cmp_name = "IT UP: PRIME2",
+        .cmp_ver = "v2.05.0",
+        .name = (void*)(0x818d0db + 5),
+        .ver = (void*)0x818d178,
+        .demo_var = (void*)0xe1fbd04,
+        .p1_a = (void*)0x0e32a704,
+        .p2_a = (void*)0x0e34b980,
+    },
     // PIU PRIME2 v05_1
-    /*   
+    /*
         if ((((&DAT_0ac1f5c4)[uVar12 * 0x849f] != -1) ||
             (*(int *)(&DAT_0ac1f5c0 + uVar12 * 0x2127c) != -1)) &&
         ((DAT_0aaf0b88 >> (uVar12 & 0x1f) & 1) != 0)) {
