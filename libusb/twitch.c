@@ -12,6 +12,7 @@
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <math.h>
 #include <fcntl.h>
 
@@ -99,13 +100,19 @@ void KeyHandler_Twitch_Init(void) {
   
   bzero((char *) &serv_addr, sizeof(serv_addr));
   serv_addr.sin_family = AF_INET;
-  serv_addr.sin_addr.s_addr = INADDR_ANY;
+  /* Loopback only: the profile web of the cabinet (piuweb/live.py) is the
+   * one watcher and shows the pads to the network itself; anything that may
+   * press the pads stays off the network.  _PIUIOEMU_TWITCH_BIND=0.0.0.0
+   * opens it again (desktop tests from another machine). */
+  serv_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  if ((val = getenv("_PIUIOEMU_TWITCH_BIND")) && inet_aton(val, &serv_addr.sin_addr) == 0)
+    serv_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   serv_addr.sin_port = htons(net_port);
   if (bind(sockfd, (struct sockaddr *) &serv_addr,
           sizeof(serv_addr)) < 0) 
           error("ERROR on binding");
   listen(sockfd,5);
-  PRINTF("Twitch server listening on port %d\n", net_port);
+  PRINTF("Twitch server listening on %s:%d\n", inet_ntoa(serv_addr.sin_addr), net_port);
 }
 
 #define MAXBUF (1*1024*1024)
