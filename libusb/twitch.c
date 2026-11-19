@@ -132,6 +132,12 @@ void KeyHandler_Twitch_Exit(void) {
   close(sockfd);
 }
 
+/* Nothing pressed by the network client any more (it quit or vanished). */
+static void TwitchReleaseAll(void) {
+  bytes_g[0] = bytes_g[1] = bytes_g[2] = bytes_g[3] = 0xFF;
+  bytes_gb[0] = bytes_gb[1] = 0xFF;
+}
+
 unsigned long tlastaccept = 0;
 static void handle_socket(void){
   if(!isListen) {
@@ -156,8 +162,16 @@ static void handle_socket(void){
   else { // Is listening
     bzero(buffer,256);
     n = recv(newsockfd,buffer,255,MSG_DONTWAIT);
-    if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-        perror("ERROR reading from socket");
+    if (n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
+        /* The client went away (closed, or the connection broke): let go of
+         * whatever it was pressing and take the next client. */
+        if (n < 0) perror("ERROR reading from socket");
+        PRINTF("Twitch client gone, released\n");
+        TwitchReleaseAll();
+        isListen = 0;
+        close(newsockfd);
+        newsockfd = -1;
+        siz = 0;
         return;
     }
     else {
@@ -175,6 +189,7 @@ static void handle_socket(void){
     
     if(buffer[0] == 'Q') {
       PRINTF("Quiting the client\n");
+      TwitchReleaseAll();
       send(newsockfd, "Q\n", strlen("Q\n"), 0); // Notify of exit
       isListen = 0;
       close(newsockfd);
