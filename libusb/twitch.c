@@ -20,6 +20,7 @@
 //char bytes_tb[2];
 char bytes_g[4];
 char bytes_gb[2];
+unsigned char bytes_gs[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 int HandleBuffer(int deploy_full);
 void HandleRequest(int req);
 unsigned long GetCurrentTime(void);
@@ -136,6 +137,7 @@ void KeyHandler_Twitch_Exit(void) {
 static void TwitchReleaseAll(void) {
   bytes_g[0] = bytes_g[1] = bytes_g[2] = bytes_g[3] = 0xFF;
   bytes_gb[0] = bytes_gb[1] = 0xFF;
+  memset(bytes_gs, 0xFF, sizeof(bytes_gs));
 }
 
 unsigned long tlastaccept = 0;
@@ -352,6 +354,21 @@ int HandleBuffer(int deploy_full) {
           break;
         }
 
+        /* `e <p1> <p2>`: single sensors. Each word is active low, byte k =
+         * sensor k of the five panels (bits 0-4 UL UR C DL DR), the layout of
+         * the `s` report; `d` presses all four sensors of a panel at once. */
+        if(strcmp(fs, "e") == 0) {
+          uint32_t a1, a2;
+          char* conv = f2+1;
+          if(sscanf(conv, "%x %x", &a1, &a2) == 2) {
+            for(int k = 0; k < 4; k++) {
+              bytes_gs[k] = (a1 >> (8*k)) & 0xFF;
+              bytes_gs[4+k] = (a2 >> (8*k)) & 0xFF;
+            }
+          }
+          break;
+        }
+
         if(strcmp(fs, "b") == 0) {
           uint32_t st;
           char* conv = f2+1;
@@ -401,6 +418,7 @@ void KeyHandler_Twitch_Poll(void) {
   bytes_t[3] = bytes_g[3];
   bytes_tb[0] = bytes_gb[0];
   bytes_tb[1] = bytes_gb[1];
+  memcpy(bytes_ts, bytes_gs, sizeof(bytes_ts));
   unsigned long time = GetCurrentTime();
   
   handle_socket();

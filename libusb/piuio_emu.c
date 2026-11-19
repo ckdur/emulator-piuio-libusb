@@ -319,6 +319,7 @@ unsigned char bytes_p[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // From keyboard
 unsigned char bytes_pb[2] = {0xFF, 0xFF};
 unsigned char bytes_t[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // From twitch
 unsigned char bytes_tb[2] = {0xFF, 0xFF};
+unsigned char bytes_ts[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // From twitch, per sensor (`e`)
 
 unsigned char bytes_l[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 unsigned char bytes_f[16] = { // As LX
@@ -783,11 +784,11 @@ static int piulxio_helper_process_data_in(uint8_t* bytes, int size) {
 
     // p1 stuff
     for(int i = 0; i < 4; i++) {
-        bytes_f[i] = bytes[i] = bytes_piuio[i] & bytes_j[0] & bytes_p[0] & bytes_t[0];
+        bytes_f[i] = bytes[i] = bytes_piuio[i] & bytes_j[0] & bytes_p[0] & bytes_t[0] & bytes_ts[i];
     }
     // p2 stuff
     for(int i = 4; i < 8; i++) {
-        bytes_f[i] = bytes[i] = bytes_piuio[i] & bytes_j[2] & bytes_p[2] & bytes_t[2];
+        bytes_f[i] = bytes[i] = bytes_piuio[i] & bytes_j[2] & bytes_p[2] & bytes_t[2] & bytes_ts[i];
     }
     if(size <= 8) return ret;
     // coin stuff
@@ -889,8 +890,8 @@ static int piuio_helper_process_data_in(uint8_t* bytes, int size) {
     int ret = min(8, size);
 
     // Fill accordingly
-    bytes_f[s1+0] = bytes[0] = bytes_piuio[s1+0] & bytes_j[0] & bytes_p[0] & bytes_t[0];
-    bytes_f[s2+4] = bytes[2] = bytes_piuio[s2+4] & bytes_j[2] & bytes_p[2] & bytes_t[2];
+    bytes_f[s1+0] = bytes[0] = bytes_piuio[s1+0] & bytes_j[0] & bytes_p[0] & bytes_t[0] & bytes_ts[s1];
+    bytes_f[s2+4] = bytes[2] = bytes_piuio[s2+4] & bytes_j[2] & bytes_p[2] & bytes_t[2] & bytes_ts[s2+4];
     bytes_f[8] = bytes[1] = bytes_piuio[8] & bytes_j[1] & bytes_p[1] & bytes_t[1];
     bytes_f[9] = bytes[3] = bytes_piuio[9] & bytes_j[3] & bytes_p[3] & bytes_t[3];
 
