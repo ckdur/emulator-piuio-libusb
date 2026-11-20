@@ -16,6 +16,7 @@
 #include "piuio.h"
 #include "twitch.h"
 #include "autoplay.h"
+#include "piuio_testhold.h"
 
 #define min(a, b) ((a)<(b)?(a):(b))
 // Full USB string descriptors (bLength, bDescriptorType=3, UTF-16LE text).
@@ -445,20 +446,16 @@ static void init_piuio_emu(void) {
     pthread_create(&thread_poll, NULL, thread_poll_func, NULL);
 }
 
-// The TEST button held for 5 seconds kills the process (that is how a game
-// hands control back to the boot script, which relaunches the menu). The
-// menu itself must NOT be killed that way: exiting the menu only makes the
-// boot script relaunch it, in a pointless loop. The menu tells us it is the
-// menu through libusb_piuio_report_menu() and we then leave the process
-// alive on a TEST hold.
+// TEST held for 5 seconds ends a game (piuio_testhold.h). The menu reports
+// itself through libusb_piuio_report_menu() and is never ended that way: only
+// its Settings entries restart or shut down the machine (IMPER-34).
 static int piuioemu_menu_process = 0;
 void API_EXPORTED libusb_piuio_report_menu(void) {
     piuioemu_menu_process = 1;
     PRINTF("piuio_emu: menu process reported, TEST-hold exit disabled\n");
 }
 
-time_t start_time = 0;
-bool condition_met = false;
+static struct piuio_testhold test_hold;
 void* thread_poll_func(void* a) {
     (void)a;
     while(!thread_poll_done) {
@@ -467,35 +464,23 @@ void* thread_poll_func(void* a) {
         KeyHandler_Twitch_Poll();
         update_autoplay();
 
-        // Detect if service and test has been held 5 seconds
-        // Test is bit 9, service is bit 14
-        //    bit 9                    bit 14
-        if(!(bytes_f[8] & 0x02)/* && !(bytes_f[1] & 0x40)*/) {
-            if(!condition_met) {
-                // Start timing if condition is met for the first time
-                start_time = time(NULL);
-                condition_met = true;
+        // TEST is bit 9 (active low)
+        switch(piuio_testhold_step(&test_hold, !(bytes_f[8] & 0x02), time(NULL), piuioemu_menu_process)) {
+            case PIUIO_TESTHOLD_STARTED:
                 PRINTF("TEST hold ...\n");
-            }
-            else if (time(NULL) - start_time >= 5) {
-                if(piuioemu_menu_process) {
-                    // The menu reported itself. Keep it running.
-                    PRINTF("TEST held 5 seconds, but this is the menu: staying alive\n");
-                    condition_met = false;
-                }
-                else {
-                    // If condition is continuously met for 5 seconds, exit the loop
-                    thread_poll_done = 1;
-                    PRINTF("TEST held 5 seconds. Exiting ...\n");
-                    exit(0);
-                    abort();
-                    *((int*)NULL) = 0; // crash it
-                    return NULL;
-                }
-            }
-        }
-        else {
-            condition_met = false;
+                break;
+            case PIUIO_TESTHOLD_MENU:
+                PRINTF("TEST held 5 seconds, but this is the menu: staying alive\n");
+                break;
+            case PIUIO_TESTHOLD_EXIT:
+                thread_poll_done = 1;
+                PRINTF("TEST held 5 seconds. Exiting ...\n");
+                exit(0);
+                abort();
+                *((int*)NULL) = 0; // crash it
+                return NULL;
+            default:
+                break;
         }
         // Real IOs already block on their transfers. This only avoids burning a
         // whole core when there is nothing real to poll
