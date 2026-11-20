@@ -14,6 +14,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/wait.h>
 
 #include "piuio_emu.h"
 #include "twitch.h"
@@ -91,6 +92,14 @@ int main(void) {
     ask(s, "req 10\n");
     // two requests in one packet: both answered, in order (the first used to be lost)
     check("req 9 + req 12 in one packet", strcmp(ask(s, "req 9\nreq 12\n"), "ok\na 1 1\n") == 0 && auto_1 == 0);
+    // a forked child that runs the exit handlers (phoenix's helpers end with
+    // exit(), and the game's handler calls libusb_exit): the parent's client
+    // connection and autoplay stay (IMPER-88)
+    pid_t child = fork();
+    if(child == 0) { KeyHandler_Twitch_Exit(); _exit(0); }
+    waitpid(child, NULL, 0);
+    check("a child's exit path: autoplay still on", auto_1 == 0 && auto_2 == 0);
+    check("a child's exit path: the client is still served", strcmp(ask(s, "req 12\n"), "a 1 1\n") == 0);
     close(s);                       // the page (piuweb) vanished
     polls(10);
     check("connection dropped: autoplay off", auto_1 == -1 && auto_2 == -1);

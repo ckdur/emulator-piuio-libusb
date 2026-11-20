@@ -1,3 +1,6 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE     // accept4
+#endif
 #include "piuio_emu.h"
 #include "twitch.h"
 #include "autoplay.h"
@@ -48,6 +51,8 @@ static void error(const char *msg)
   exit(1);
 }
 
+static pid_t twitch_pid = 0;        // the process that opened the port
+
 void KeyHandler_Twitch_Init(void) {
 	bytes_g[0] = 0xFF;
 	bytes_g[1] = 0xFF;
@@ -76,7 +81,9 @@ void KeyHandler_Twitch_Init(void) {
 	//	puts("Could not create server twitch thread");
 	//}
 	
-  sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  twitch_pid = getpid();
+  // close-on-exec: the helpers the games run must not keep the port open
+  sockfd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   if (sockfd < 0) 
     error("ERROR opening socket");
 
@@ -123,6 +130,16 @@ int siz = 0;
 char isListen = 0;
 
 void KeyHandler_Twitch_Exit(void) {
+  /* In a forked child (its exit handlers can end up here) the sockets are
+   * copies: a Q and a shutdown() would end the parent's client connection
+   * (and with it autoplay). Only close the copies. */
+  if(twitch_pid != 0 && getpid() != twitch_pid) {
+    if(isListen && newsockfd >= 0) close(newsockfd);
+    close(sockfd);
+    newsockfd = -1;
+    isListen = 0;
+    return;
+  }
   if(isListen || newsockfd >= 0) { 
     send(newsockfd, "Q\n", strlen("Q\n"), 0); // Notify of exit
     shutdown(newsockfd, SHUT_RDWR);
@@ -149,9 +166,9 @@ static void handle_socket(void){
   if(!isListen) {
     // Try to accept the connection
     clilen = sizeof(cli_addr);
-    newsockfd = accept(sockfd, 
-               (struct sockaddr *) &cli_addr, 
-               &clilen);
+    newsockfd = accept4(sockfd,
+               (struct sockaddr *) &cli_addr,
+               &clilen, SOCK_CLOEXEC);
     if (newsockfd < 0) {
       if(!(errno == EAGAIN || errno == EWOULDBLOCK)) {
         error("ERROR on accept");

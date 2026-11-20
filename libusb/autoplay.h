@@ -36,7 +36,17 @@ struct autoplay_construct {
   int* sjumps; // Size to patch
   int njumps; // Number of jumps
   void* rand_judgament; // Location of the random judgament function
+  // Optional (check_autoplay only, never read by report_autoplay): address of
+  // the game's own DEMO set-up, the three instructions
+  //   movb $1,demo_var; movl $0,p1_a-4; movl $0,p2_a-4
+  // (c6 05 <demo_var> 01 c7 05 <p1_a-4> 00000000 c7 05 <p2_a-4> 00000000).
+  // When set, the construct is used only if these bytes are there exactly, so
+  // a build whose strings match but whose layout differs is never poked.
+  unsigned char* demo_set;
 };
+
+// The 27 bytes check_autoplay expects at con->demo_set (see above).
+void autoplay_demo_set_bytes(const struct autoplay_construct* con, unsigned char out[27]);
 
 void API_EXPORTED report_autoplay(struct autoplay_construct* con);
 

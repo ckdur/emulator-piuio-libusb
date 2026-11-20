@@ -724,7 +724,7 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0x08c2676c,
         .p2_a = (void*)0x08c47950,
     },
-    // PIU Phoenix (only for identification)
+    // PIU Phoenix 2.07 .. 2.11 (only for identification)
     {
         .version = 0,
         .cmp_name = "IT UP: PHOENIX",
@@ -785,15 +785,49 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0,
         .p2_a = (void*)0,
     },
+    // PIU Phoenix v2.12.0 / v2.13.0 Autoplay variables (same construct as XX)
+    /*
+        No "DEMO" strcasecmp any more (the attract list is a table), but the
+        DEMO set-up is the same three stores as xx 0x80fba26, found by the
+        pair of `movl $0x0` one player stride (0x211f0, xx 0x211e4) apart:
+
+            2.12 0x80dca10: movb $0x1,0x979e7a4      (demo_var, m_bDemo)
+                            movl $0x0,0x96baa14      (P1 slot, base+0x20c54)
+                            movl $0x0,0x96dbc04      (P2 slot, +0x211f0)
+            2.13 0x80dbd1a: movb $0x1,0x979d784 / 0x96b99f4 / 0x96dabe4
+
+        Judgment apply, per player p (2.12 0x80e1c0e, 2.13 0x80e0f1e), base
+        0x9699dc0 (2.13 0x9698da0), mask demo_var+4 as in xx:
+
+            if (slot[p].+0x20c58 == -1) {
+              if (slot[p].+0x20c54 != -1 && (mask >> p & 1)) judge(p, 0);
+            } else if (mask >> p & 1) judge(p, slot[p].+0x20c58);
+
+        so p1_a = base + 0x20c58 (the "real one", +4 of what DEMO sets) and
+        p2_a = p1_a + 0x211f0. .demo_set pins those stores: a build whose
+        strings match but whose layout differs is never poked.
+    */
     {
         .version = 0,
         .cmp_name = "IT UP: PHOENIX",
         .cmp_ver = "v2.12.0",
         .name = (void*)(0x81d0ccc + 5),
         .ver = (void*)0x81c619c,
-        .demo_var = (void*)0,
-        .p1_a = (void*)0,
-        .p2_a = (void*)0,
+        .demo_var = (void*)0x979e7a4,
+        .p1_a = (void*)0x96baa18,
+        .p2_a = (void*)0x96dbc08,
+        .demo_set = (void*)0x80dca10,
+    },
+    {
+        .version = 0,
+        .cmp_name = "IT UP: PHOENIX",
+        .cmp_ver = "v2.13.0",
+        .name = (void*)(0x81cfdcc + 5),
+        .ver = (void*)0x81c52dc,
+        .demo_var = (void*)0x979d784,
+        .p1_a = (void*)0x96b99f8,
+        .p2_a = (void*)0x96dabe8,
+        .demo_set = (void*)0x80dbd1a,
     },
     // PIU PRO2 (only for identification)
     {
@@ -963,6 +997,27 @@ static int autoplay_match_in_image(struct sigscan_image* img, struct autoplay_co
     return 1;
 }
 
+static void put_u32(unsigned char* p, uintptr_t v) {
+    p[0] = v & 0xff; p[1] = (v >> 8) & 0xff; p[2] = (v >> 16) & 0xff; p[3] = (v >> 24) & 0xff;
+}
+
+void API_EXPORTED autoplay_demo_set_bytes(const struct autoplay_construct* con, unsigned char out[27]) {
+    memset(out, 0, 27);
+    out[0] = 0xc6; out[1] = 0x05; put_u32(out + 2, (uintptr_t)con->demo_var); out[6] = 0x01;
+    out[7] = 0xc7; out[8] = 0x05; put_u32(out + 9, (uintptr_t)con->p1_a - 4);
+    out[17] = 0xc7; out[18] = 0x05; put_u32(out + 19, (uintptr_t)con->p2_a - 4);
+}
+
+/* A construct with .demo_set: the game's DEMO set-up must store to exactly
+ * the variables the construct names (see autoplay.h). */
+static int autoplay_code_ok(struct autoplay_construct* con) {
+    unsigned char want[27];
+    if(con->demo_set == NULL) return 1;
+    if(memcheck(con->demo_set) != 0 || memcheck(con->demo_set + sizeof(want) - 1) != 0) return 0;
+    autoplay_demo_set_bytes(con, want);
+    return memcmp(con->demo_set, want, sizeof(want)) == 0;
+}
+
 void check_autoplay(void) {
     struct sigscan_image* img = autoplay_get_image();
     for(int i = 0; i < size_all_constructs; i++) {
@@ -972,8 +1027,18 @@ void check_autoplay(void) {
             memcmp(con->ver, con->cmp_ver, strlen(con->cmp_ver)) == 0;
         if(!matched)
             matched = autoplay_match_in_image(img, con);
+        if(matched && !autoplay_code_ok(con)) {
+            // identified, but this is not the layout the table knows: name
+            // and version only, nothing to poke (auto_available stays 0)
+            static struct autoplay_construct id_only;
+            PRINTF("%s (%s): strings match, code does not; no autoplay\n", con->cmp_name, con->cmp_ver);
+            id_only = *con;
+            id_only.demo_var = NULL;
+            id_only.p1_a = id_only.p2_a = NULL;
+            con = &id_only;
+        }
         if(matched) {
-            report_autoplay(&all_contstructs[i]);
+            report_autoplay(con);
             if(auto_available) break;
         }
     }

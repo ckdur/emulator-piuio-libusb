@@ -367,7 +367,9 @@ static int file_exists(const char* name){
   return 1;
 }
 
+static pid_t piuioemu_pid = 0;      // the process init_piuio_emu ran in
 static void init_piuio_emu(void) {
+    piuioemu_pid = getpid();
     usbi_mutex_init(&piuioemu_mutex);
     //usbi_mutex_init(&piuioemu_poll_mutex);
     if(file_exists("/SAVE/.keyboard"))
@@ -1487,6 +1489,12 @@ int API_EXPORTED libusb_get_configuration(libusb_device_handle *dev_handle,
 void API_EXPORTED libusb_exit(libusb_context *ctx) {
     (void)ctx;
     PRINTF("piuio_emu: libusb_exit %d\n", __LINE__);
+    /* A forked child that ends with exit() runs the game's exit handlers,
+     * and phoenix's call libusb_exit (seen in QEMU: every few seconds, from
+     * its helper children). The poll thread, the board and the twitch port
+     * belong to the process that initialized them: the child must not stop
+     * them, nor end the shared client connection (IMPER-88). */
+    if(piuioemu_pid != 0 && getpid() != piuioemu_pid) return;
     thread_poll_done = 1;
     pthread_join(thread_poll, NULL);
     
