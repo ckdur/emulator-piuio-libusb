@@ -133,11 +133,15 @@ void KeyHandler_Twitch_Exit(void) {
   close(sockfd);
 }
 
-/* Nothing pressed by the network client any more (it quit or vanished). */
+/* Nothing pressed by the network client any more (it quit or vanished), and
+ * no autoplay: the client that turned it on (the profile web's live pages,
+ * IMPER-85) is the only one that may keep it on. */
 static void TwitchReleaseAll(void) {
   bytes_g[0] = bytes_g[1] = bytes_g[2] = bytes_g[3] = 0xFF;
   bytes_gb[0] = bytes_gb[1] = 0xFF;
   memset(bytes_gs, 0xFF, sizeof(bytes_gs));
+  auto_1 = -1;
+  auto_2 = -1;
 }
 
 unsigned long tlastaccept = 0;
@@ -673,6 +677,13 @@ void HandleRequest(int req) {
     auto_1 = -1;
     auto_2 = -1;
     send(newsockfd, "off\n", strlen("off\n"), 0);
+  }
+  /* `a <available> <on>`: does this game have an autoplay the shim can
+   * switch (autoplay.c found its flag), and is it on now. */
+  if(req == STATE_GET_AUTOPLAY) {
+    snprintf(msg, sizeof(msg), "a %d %d\n", auto_available ? 1 : 0,
+      (auto_1 != -1 || auto_2 != -1) ? 1 : 0);
+    send(newsockfd, msg, strlen(msg), 0);
   }
   if(req == STATE_GET_GAME_NAME) {
     snprintf(msg, sizeof(msg), "%s,%s\n", 

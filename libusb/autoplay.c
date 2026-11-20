@@ -902,6 +902,7 @@ struct autoplay_construct* auto_chosen = NULL;
 int auto_val = 0;
 
 int auto_patched = 0;
+static int auto_was_on = 0;  // update_autoplay: the shim forced the flag last poll
 char** auto_orig_jumps;
 
 static void try_get_version_3(struct autoplay_construct* con) {
@@ -1095,6 +1096,17 @@ void update_autoplay (void) {
     }
 
     // All other versions...
+    // Autoplay just went off: put the flag back once to the value the game
+    // has when nobody forces it (version 0: the judgment slot is -1 when no
+    // judgment is forced; versions 1-3: a flag, 0). Not on every poll: the
+    // game's own demo play uses the same variables.
+    if(auto_1 == -1 && auto_2 == -1 && auto_was_on) {
+        unsigned int off = auto_version == 0 ? 0xFFFFFFFF : 0;
+        (*player1_auto) = off;
+        (*player2_auto) = off;
+    }
+    auto_was_on = (auto_1 != -1 || auto_2 != -1);
+
     if(auto_1 != -1)
         (*player1_auto) = auto_version == 0 ? auto_1: auto_val;
     else {
