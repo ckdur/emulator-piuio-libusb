@@ -341,8 +341,10 @@ int HandleBuffer(int deploy_full) {
           char* conv = f2+1;
           int k;
           int arg = sscanf(conv, "%d", &k);
-          if(arg == 1 && k < STATE_REQUEST_END) {
-            req = k;
+          /* every request of the buffer is answered, in order: a client that
+           * sends "req 9\nreq 12\n" in one packet must not lose the first */
+          if(arg == 1 && k > STATE_REQUEST_NONE && k < STATE_REQUEST_END) {
+            HandleRequest(k);
           }
           break;
         }

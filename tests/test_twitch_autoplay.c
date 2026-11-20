@@ -59,15 +59,16 @@ static int client(void) {
     return s;
 }
 
-// send one line, poll the shim, return what came back (one recv)
+// send one line, poll the shim, return everything that came back
 static const char* ask(int s, const char* line) {
     static char out[256];
     send(s, line, strlen(line), 0);
     polls(10);
     struct timeval tv = {0, 200000};
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    int n = recv(s, out, sizeof(out) - 1, 0);
-    out[n > 0 ? n : 0] = 0;
+    int len = 0, n;
+    while((n = recv(s, out + len, sizeof(out) - 1 - len, 0)) > 0) len += n;   // until 200 ms of quiet
+    out[len] = 0;
     return out;
 }
 
@@ -87,6 +88,9 @@ int main(void) {
     check("req 10 turns autoplay off", auto_1 == -1 && auto_2 == -1);
     ask(s, "req 9\n");
     check("on again", auto_1 == 0);
+    ask(s, "req 10\n");
+    // two requests in one packet: both answered, in order (the first used to be lost)
+    check("req 9 + req 12 in one packet", strcmp(ask(s, "req 9\nreq 12\n"), "ok\na 1 1\n") == 0 && auto_1 == 0);
     close(s);                       // the page (piuweb) vanished
     polls(10);
     check("connection dropped: autoplay off", auto_1 == -1 && auto_2 == -1);
