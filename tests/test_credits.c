@@ -1,6 +1,7 @@
 // Host test for the rules of global credits and free play with attract in the
 // PIUIO shim (libusb/credits_logic.h; IMPER-116, IMPER-117, IMPER-119).
 //
+//   (the table of the games and the counters in memory: tests/test_credits_table.c, 32-bit)
 //   gcc -std=gnu17 -Wall -Wextra -I libusb -o /tmp/test_credits tests/test_credits.c && /tmp/test_credits
 
 #include <stdio.h>

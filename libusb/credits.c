@@ -24,6 +24,7 @@
 #include "piuio_emu.h"
 
 #include <errno.h>
+#include <stddef.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,47 +44,7 @@
 #define CREDITS_SETTLE_MS 3000    // a game's numbers must hold this long before the restore
 #define CREDITS_REPRICE_MS 15000  // after the restore: the game may still load its price
 
-// ---- Games that are not our sources ------------------------------------------
-// Exceed, Exceed 2: class CCreditMgr { CSetupMgr* setup; int coins; }, with the
-// operator's settings in the setup object (0x7f2 coins per credit, 0x7ec
-// event mode, 0x7eb credit limit). The guard is the game's own main loop
-// reading the coin switch:
-//   mov setup,%esi; cmpb $0,0x7f2(%esi); je +0xf; push $0; push creditmgr
-#define EX_GUARD(setup, mgr) (const unsigned char[]){ \
-    0x8b, 0x35, (setup) & 0xff, ((setup) >> 8) & 0xff, ((setup) >> 16) & 0xff, ((setup) >> 24) & 0xff, \
-    0x80, 0xbe, 0xf2, 0x07, 0x00, 0x00, 0x00, 0x74, 0x0f, 0x6a, 0x00, \
-    0xff, 0x35, (mgr) & 0xff, ((mgr) >> 8) & 0xff, ((mgr) >> 16) & 0xff, ((mgr) >> 24) & 0xff }
-//
-// Free play with attract: CCreditMgr::GetCoin() ends with
-//   mov $0x63,%eax; ret        (free play)
-//   mov 0x4(%eax),%eax; ret    (the coin counter)
-// and the first of the two is what the title and the attract screens get
-// (the start check is GetCredit()). getcoin99 is that instruction. flags is
-// the game's player flags: bits 0 and 1, a player has joined; the demo play
-// of the attract sequence is flags[demo_off] & demo_mask.
-struct credit_entry {
-    struct credit_construct con;
-    uintptr_t getcoin99;
-    uintptr_t flags;
-    int demo_off;
-    unsigned char demo_mask;
-};
-
-#define EX_ENTRY(title, at, setup, mgr, getcoin, flagsat, demooff, demomask) { { \
-    .version = CREDITS_CONSTRUCT_VERSION, .name = title, \
-    .coins_base = (void**)(mgr), .coins_off = 4, \
-    .set_base = (void**)(setup), .cpc_off = 0x7f2, .cpc_size = 1, \
-    .free_off = 0x7ec, .limit_off = 0x7eb, .max_credits = 0, \
-    .guard = (const unsigned char*)(at), .guard_bytes = EX_GUARD(setup, mgr), .guard_len = 23 }, \
-    getcoin, flagsat, demooff, demomask }
-
-static const struct credit_entry credit_table[] = {
-    EX_ENTRY("Exceed (mini)",           0x804d8cd, 0x80a8dbc, 0x80a8dc4, 0x804e91c, 0x80a8d74, 2, 0x10),
-    // Exceed 2: no demo play was seen to join players in 7 minutes of its
-    // attract sequence, and which bit would mark one is not known: none.
-    EX_ENTRY("Exceed 2 (Dec  7 2004)",  0x804dd25, 0x80bed3c, 0x80bed48, 0x804ee8c, 0x80becd4, 0, 0),
-    EX_ENTRY("Exceed 2 (Aug 18 2005)",  0x804dce9, 0x80bae7c, 0x80bae84, 0x804ee50, 0x80bae14, 0, 0),
-};
+#include "credits_table.h"
 
 // ---- Memory of our own process, without faulting -----------------------------
 // The addresses come from a table (or from an object the game may not have
@@ -202,8 +163,11 @@ static long now_ms(void)
 
 void API_EXPORTED report_credits(const struct credit_construct* c)
 {
-    if(c == NULL || c->version != CREDITS_CONSTRUCT_VERSION) return;
-    con = *c;
+    if(c == NULL || c->version < 1 || c->version > CREDITS_CONSTRUCT_VERSION) return;
+    memset(&con, 0, sizeof(con));
+    // version 1 ends where part_base starts
+    memcpy(&con, c, c->version == 1 ? offsetof(struct credit_construct, part_base) : sizeof(con));
+    con.version = CREDITS_CONSTRUCT_VERSION;
     con_set = 1;
     PRINTF("credits: %s reported its credits\n", c->name ? c->name : "game");
 }
@@ -285,10 +249,10 @@ static int game_byte(uintptr_t off, int* out)
 static int game_read(struct credits_game* g)
 {
     uintptr_t a;
-    int32_t coins;
+    int32_t coins, part = 0;
     memset(g, 0, sizeof(*g));
     if(game_addr(con.coins_base, con.coins_off, &a) != 0 || mem_read(a, &coins, 4) != 0) return -1;
-    g->coins = coins;
+    if(con.part_off != 0 && (game_addr(con.part_base, con.part_off, &a) != 0 || mem_read(a, &part, 4) != 0)) return -1;
     if(con.cpc_size == 4) {
         int32_t cpc;
         if(game_addr(con.set_base, con.cpc_off, &a) != 0 || mem_read(a, &cpc, 4) != 0) return -1;
@@ -299,14 +263,27 @@ static int game_read(struct credits_game* g)
     if(con.limit_off != 0 && game_byte(con.limit_off, &g->limit) != 0) return -1;
     g->max_credits = con.max_credits;
     // a counter no game would hold: not what the table says it is
-    if(g->coins < 0 || g->coins > 1000000 || g->cpc < 0 || g->cpc > 255) return -1;
+    if(coins < 0 || coins > 1000000 || part < 0 || part > 255 || g->cpc < 0 || g->cpc > 255) return -1;
+    // another coin mode (several credits per coin): the game is left alone
+    if(con.max_cpc > 0 && g->cpc > con.max_cpc) return -1;
+    if(con.part_off == 0) g->coins = coins;
+    else if(g->cpc <= 0) g->coins = coins;                          // free play: whole credits only
+    else g->coins = coins * g->cpc + (part < g->cpc ? part : g->cpc - 1);
+    if(g->coins > 1000000) return -1;
     return 0;
 }
 
-static int game_set_coins(int coins)
+// coins: the game's count at its price cpc. DIRECT: the part first, then the
+// whole credits (a coin routine of the game in between sees a credit short at worst).
+static int game_set_coins(int coins, int cpc)
 {
     uintptr_t a;
     int32_t v = coins;
+    if(con.part_off != 0 && cpc > 0) {
+        int32_t part = coins % cpc;
+        v = coins / cpc;
+        if(game_addr(con.part_base, con.part_off, &a) != 0 || mem_write(a, &part, 4) != 0) return -1;
+    }
     if(game_addr(con.coins_base, con.coins_off, &a) != 0) return -1;
     return mem_write(a, &v, 4);
 }
@@ -364,7 +341,7 @@ static void game_poll(long now)
         if(now - valid_since < CREDITS_SETTLE_MS) return;
         pool_load(&p);
         coins = credits_restore(&g, &p, real_coins, &excess);
-        if(game_set_coins(coins) != 0) return;
+        if(game_set_coins(coins, g.cpc) != 0) return;
         restored = 1;
         restored_at = now;
         restored_cpc = g.cpc;
@@ -379,10 +356,10 @@ static void game_poll(long now)
 
     // The game read its price from its save after the restore: the credits
     // handed over are the same number at the new price.
-    if(now - restored_at < CREDITS_REPRICE_MS && g.cpc != restored_cpc && g.coins == restored_coins) {
+    if(con.part_off == 0 && now - restored_at < CREDITS_REPRICE_MS && g.cpc != restored_cpc && g.coins == restored_coins) {
         restored_coins = restored_credits * g.cpc;
         restored_cpc = g.cpc;
-        game_set_coins(restored_coins);
+        game_set_coins(restored_coins, g.cpc);
         g.coins = restored_coins;
     }
 
@@ -391,7 +368,7 @@ static void game_poll(long now)
         int room = credits_cap(&g) - g.coins / g.cpc;
         if(room > 0) {
             int n = room < excess ? room : excess;
-            if(game_set_coins(g.coins + n * g.cpc) == 0) {
+            if(game_set_coins(g.coins + n * g.cpc, g.cpc) == 0) {
                 excess -= n;
                 g.coins += n * g.cpc;
             }

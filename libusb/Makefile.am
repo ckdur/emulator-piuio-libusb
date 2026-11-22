@@ -91,7 +91,7 @@ endif
 endif
 
 libusb_1_0_la_LDFLAGS = $(LT_LDFLAGS) $(EXTRA_LDFLAGS)
-libusb_1_0_la_SOURCES = libusbi.h version.h version_nano.h piuio_emu.h piuio_testhold.h piuio_input.h keyboards.h piuio.h twitch.h autoplay.h credits.h credits_logic.h freeplay_attract.h \
+libusb_1_0_la_SOURCES = libusbi.h version.h version_nano.h piuio_emu.h piuio_testhold.h piuio_input.h keyboards.h piuio.h twitch.h autoplay.h credits.h credits_logic.h credits_table.h freeplay_attract.h \
 	core.c piuio_emu.c keyboards.c descriptor.c piuio.c hotplug.c io.c strerror.c sync.c twitch.c autoplay.c credits.c freeplay_attract.c \
 	$(PLATFORM_SRC) $(OS_SRC)
 

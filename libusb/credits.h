@@ -11,13 +11,19 @@
 #define API_EXPORTED __attribute__((visibility("default")))
 #endif
 
-#define CREDITS_CONSTRUCT_VERSION 1
+// 2: part_base, part_off and max_cpc appended. A game built against version 1
+// (a shorter struct) is still taken: the new fields read as 0 (RAW, no max).
+#define CREDITS_CONSTRUCT_VERSION 2
 
 struct credit_construct {
     int version;             // CREDITS_CONSTRUCT_VERSION
     const char* name;        // for the log only
     // Coin counter, a 32 bit int: at coins_off, or at *coins_base + coins_off
-    // (an object the game allocates).
+    // (an object the game allocates). RAW model: coins, credits = coins / cpc.
+    // With part_off != 0 (DIRECT model) it is the game's whole credits, and the
+    // coins below one credit are in a second int32 at *part_base + part_off
+    // (part_base NULL: an absolute address). The game reports coins =
+    // credits * cpc + part and is given credits = c / cpc, part = c % cpc.
     void** coins_base;
     uintptr_t coins_off;
     // Settings: at the addresses below, or at *set_base + offset.
@@ -32,6 +38,10 @@ struct credit_construct {
     const unsigned char* guard;
     const unsigned char* guard_bytes;
     int guard_len;
+    // Version 2
+    void** part_base;
+    uintptr_t part_off;      // 0: RAW (see coins_base)
+    int max_cpc;             // coins per credit above this is another coin mode: not touched. 0: none
 };
 
 // A game built from our own sources (mk3_linux_ports) tells where its
