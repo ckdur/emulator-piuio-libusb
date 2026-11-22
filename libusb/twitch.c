@@ -23,6 +23,7 @@
 //char bytes_tb[2];
 char bytes_g[4];
 char bytes_gb[2];
+unsigned char bytes_gf[2] = {0xFF, 0xFF};
 unsigned char bytes_gs[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 int HandleBuffer(int deploy_full);
 void HandleRequest(int req);
@@ -66,6 +67,8 @@ void KeyHandler_Twitch_Init(void) {
 	bytes_t[3] = 0xFF;
 	bytes_tb[0] = 0xFF;
 	bytes_tb[1] = 0xFF;
+	bytes_gf[0] = bytes_gf[1] = 0xFF;
+	bytes_tf[0] = bytes_tf[1] = 0xFF;
 	tlastchange = GetCurrentTime();
 	
   //pthread_t server;
@@ -156,6 +159,7 @@ void KeyHandler_Twitch_Exit(void) {
 static void TwitchReleaseAll(void) {
   bytes_g[0] = bytes_g[1] = bytes_g[2] = bytes_g[3] = 0xFF;
   bytes_gb[0] = bytes_gb[1] = 0xFF;
+  bytes_gf[0] = bytes_gf[1] = 0xFF;
   memset(bytes_gs, 0xFF, sizeof(bytes_gs));
   auto_1 = -1;
   auto_2 = -1;
@@ -392,6 +396,9 @@ int HandleBuffer(int deploy_full) {
           break;
         }
 
+        /* `b <hex>`: the front buttons as a button board has them, active
+         * low: bit 0 red, 1 left, 2 right, 3 green, bits 4-7 the same for
+         * P2. One red per player: an LXIO game gets UL+UR from it. */
         if(strcmp(fs, "b") == 0) {
           uint32_t st;
           char* conv = f2+1;
@@ -399,6 +406,21 @@ int HandleBuffer(int deploy_full) {
           if(arg == 1) {
             uint16_t* pt_gb = (uint16_t*)bytes_gb;
             (*pt_gb) = (uint16_t)st;
+          }
+          break;
+        }
+
+        /* `f <hex>`: the front buttons as an LXIO has them, active low:
+         * bits 0-4 UL UR C DL DR of P1, bits 8-12 of P2. UL and UR are
+         * separate buttons here (IMPER-113); a button-board game takes
+         * either as its red. */
+        if(strcmp(fs, "f") == 0) {
+          uint32_t st;
+          char* conv = f2+1;
+          int arg = sscanf(conv, "%x", &st);
+          if(arg == 1) {
+            bytes_gf[0] = st & 0xFF;
+            bytes_gf[1] = (st >> 8) & 0xFF;
           }
           break;
         }
@@ -441,6 +463,8 @@ void KeyHandler_Twitch_Poll(void) {
   bytes_t[3] = bytes_g[3];
   bytes_tb[0] = bytes_gb[0];
   bytes_tb[1] = bytes_gb[1];
+  bytes_tf[0] = bytes_gf[0];
+  bytes_tf[1] = bytes_gf[1];
   memcpy(bytes_ts, bytes_gs, sizeof(bytes_ts));
   unsigned long time = GetCurrentTime();
   
@@ -648,16 +672,21 @@ void HandleRequest(int req) {
       (p2r & 0x8) ? 1:0, 
       (p2r & 0x10) ? 1:0};
 
-    int service = (bytes_f[8] & 0x02) ? 1:0;
+    /* Third group, in this order (the order is the wire format and stays):
+     * TEST, coin 1, SERVICE, clear, coin 2. 0x02 is TEST and 0x40 SERVICE
+     * (piuio_input.h, mk5emu); the names here used to be the other way
+     * round (IMPER-115). Always the buttons themselves, also for a game
+     * that reads them swapped (_PIUIOEMU_SWAP_TEST_SERVICE). */
+    int test = (bytes_f[8] & 0x02) ? 1:0;
     int coin1 = (bytes_f[8] & 0x04) ? 1:0;
-    int test = (bytes_f[8] & 0x40) ? 1:0;
+    int service = (bytes_f[8] & 0x40) ? 1:0;
     int clear = (bytes_f[8] & 0x80) ? 1:0;
     int coin2 = (bytes_f[9] & 0x04) ? 1:0;
 
     snprintf(msg, sizeof(msg), "%d%d%d%d%d %d%d%d%d%d %d%d%d%d%d\n", 
       p1[0], p1[1], p1[2], p1[3], p1[4], 
       p2[0], p2[1], p2[2], p2[3], p2[4], 
-      service, coin1, test, clear, coin2);
+      test, coin1, service, clear, coin2);
 
     send(newsockfd, msg, strlen(msg), 0);
     //PRINTF("Sent the step status\n");

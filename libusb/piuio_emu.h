@@ -47,6 +47,8 @@
 
 extern unsigned char bytes_l[16];
 extern unsigned char bytes_f[16];
+extern unsigned char bytes_lb[8];   // lamps the game wrote to the emulated button board
+extern int bytes_lb_set;
 extern int piuioemu_mode;
 
 // Called by the menu host process: disables the TEST-hold-5-seconds
@@ -59,6 +61,7 @@ void libusb_piuio_report_menu(void);
 #define EMU_PIUIO_BUTTON 0x8
 #define WITH_PIULXIO_2 0x10
 #define EMU_PROPAGATE 0x20
+#define EMU_SWAP_TEST_SERVICE 0x40  // the game reads TEST as SERVICE and SERVICE as TEST
 
 //#define DEBUG
 #ifdef DEBUG

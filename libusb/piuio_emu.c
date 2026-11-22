@@ -17,6 +17,9 @@
 #include "twitch.h"
 #include "autoplay.h"
 #include "piuio_testhold.h"
+#include "piuio_input.h"
+#include "credits.h"
+#include "freeplay_attract.h"
 
 #define min(a, b) ((a)<(b)?(a):(b))
 // Full USB string descriptors (bLength, bDescriptorType=3, UTF-16LE text).
@@ -314,12 +317,16 @@ static int remove_from_queue(Queue* queue, struct libusb_transfer * data) {
     return 1;
 }
 
+// Front buttons: *b = button board format (one red per player), *f = LX
+// format (UL and UR apart, [0] P1, [1] P2). See piuio_input.h
 unsigned char bytes_j[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // From joysticks
 unsigned char bytes_jb[2] = {0xFF, 0xFF};
 unsigned char bytes_p[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // From keyboard
 unsigned char bytes_pb[2] = {0xFF, 0xFF};
+unsigned char bytes_pf[2] = {0xFF, 0xFF};
 unsigned char bytes_t[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // From twitch
 unsigned char bytes_tb[2] = {0xFF, 0xFF};
+unsigned char bytes_tf[2] = {0xFF, 0xFF};
 unsigned char bytes_ts[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // From twitch, per sensor (`e`)
 
 unsigned char bytes_l[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -330,6 +337,10 @@ unsigned char bytes_f[16] = { // As LX
     0xFF, 0xFF, // Frontal buttons in LX mode
     0xFF, 0xFF, 0xFF, 0xFF}; // Probably unused
 unsigned char bytes_fb[2] = {0xFF, 0xFF};
+// What the game last wrote to the emulated button board (its lamps); a real
+// board gets it from poll_piuio
+unsigned char bytes_lb[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+int bytes_lb_set = 0;
 
 #include <pthread.h>
 usbi_mutex_t piuioemu_mutex;
@@ -431,6 +442,19 @@ static void init_piuio_emu(void) {
         }
     }
 
+    // What the game reads as TEST is the SERVICE button and the other way
+    // round (Infinity, whose original swaps them: IMPER-115). The 5 second
+    // TEST hold that ends a game stays on the TEST button.
+    if ((val = getenv("_PIUIOEMU_SWAP_TEST_SERVICE"))) {
+        r = strtol(val, NULL, 10);
+        if(r) {
+            piuioemu_mode |= EMU_SWAP_TEST_SERVICE;
+        }
+        else {
+            piuioemu_mode &= ~EMU_SWAP_TEST_SERVICE;
+        }
+    }
+
     if ((val = getenv("_PIUIOEMU_PROPAGATE"))) {
         r = strtol(val, NULL, 10);
         if(r) {
@@ -445,7 +469,41 @@ static void init_piuio_emu(void) {
     init_piuio();
 
     thread_poll_done = 0;
+#ifndef PIUIO_EMU_NO_POLL_THREAD    // tests/test_piuio_input.c steps by hand
     pthread_create(&thread_poll, NULL, thread_poll_func, NULL);
+#endif
+}
+
+// Every input source, as it is now
+static void piuioemu_sources(struct piuio_sources *s) {
+    memcpy(s->io, bytes_piuio, 16);
+    memcpy(s->board, bytes_piuiob, 2);
+    for(int i = 0; i < 4; i++) s->pad[i] = bytes_j[i] & bytes_p[i] & bytes_t[i];
+    memcpy(s->sensor, bytes_ts, 8);
+    for(int i = 0; i < 2; i++) {
+        s->fboard[i] = bytes_jb[i] & bytes_pb[i] & bytes_tb[i];
+        s->flx[i] = bytes_pf[i] & bytes_tf[i];
+    }
+}
+
+// The machine as an LXIO would report it, and as a button board would.
+// bytes_f / bytes_fb keep it: the physical state (TEST hold, status feed),
+// before anything a game asks to see differently (TEST <-> SERVICE).
+static void piuioemu_mix(uint8_t lx[16], uint8_t board[2]) {
+    struct piuio_sources s;
+    uint8_t l[16], b[2];
+    piuioemu_sources(&s);
+    piuio_mix_lx(&s, l);
+    piuio_mix_board(&s, piuio_pad_emu(piuioemu_mode & EMU_PIUIO_BUTTON, is_piuiob, is_lxio), b);
+    memcpy(bytes_f, l, 16);
+    memcpy(bytes_fb, b, 2);
+    if(lx) memcpy(lx, l, 16);
+    if(board) memcpy(board, b, 2);
+}
+
+// Coins, TEST, SERVICE as the game is to see them
+static uint8_t piuioemu_game_sys(uint8_t sys) {
+    return (piuioemu_mode & EMU_SWAP_TEST_SERVICE) ? piuio_swap_test_service(sys) : sys;
 }
 
 // TEST held for 5 seconds ends a game (piuio_testhold.h). The menu reports
@@ -458,16 +516,28 @@ void API_EXPORTED libusb_piuio_report_menu(void) {
 }
 
 static struct piuio_testhold test_hold;
+// One round of the poll thread. Returns what the TEST hold says
+enum piuio_testhold_result piuioemu_poll_step(time_t now);
+enum piuio_testhold_result piuioemu_poll_step(time_t now) {
+    poll_keyboards();
+    poll_piuio();
+    // The state does not wait for the game to ask: the TEST hold and the
+    // status feed work while a game is not reading its IO
+    piuioemu_mix(NULL, NULL);
+    KeyHandler_Twitch_Poll();
+    update_autoplay();
+    credits_poll(piuioemu_menu_process); // global credits, virtual free play (credits.c)
+    freeplay_attract_poll(piuioemu_menu_process); // attract in free play, older games (freeplay_attract.c)
+
+    // TEST is bit 9 (active low). Always the TEST button itself, also for a
+    // game that reads it as SERVICE (_PIUIOEMU_SWAP_TEST_SERVICE)
+    return piuio_testhold_step(&test_hold, !(bytes_f[8] & PIUIO_SYS_TEST), now, piuioemu_menu_process);
+}
+
 void* thread_poll_func(void* a) {
     (void)a;
     while(!thread_poll_done) {
-        poll_keyboards();
-        poll_piuio();
-        KeyHandler_Twitch_Poll();
-        update_autoplay();
-
-        // TEST is bit 9 (active low)
-        switch(piuio_testhold_step(&test_hold, !(bytes_f[8] & 0x02), time(NULL), piuioemu_menu_process)) {
+        switch(piuioemu_poll_step(time(NULL))) {
             case PIUIO_TESTHOLD_STARTED:
                 PRINTF("TEST hold ...\n");
                 break;
@@ -769,49 +839,14 @@ static int piulxio_helper_process_data_in(uint8_t* bytes, int size) {
     int ret = min(16, size);
     memset(bytes, 0xFF, size);
 
-    // p1 stuff
-    for(int i = 0; i < 4; i++) {
-        bytes_f[i] = bytes[i] = bytes_piuio[i] & bytes_j[0] & bytes_p[0] & bytes_t[0] & bytes_ts[i];
-    }
-    // p2 stuff
-    for(int i = 4; i < 8; i++) {
-        bytes_f[i] = bytes[i] = bytes_piuio[i] & bytes_j[2] & bytes_p[2] & bytes_t[2] & bytes_ts[i];
-    }
-    if(size <= 8) return ret;
-    // coin stuff
-    bytes_f[8] = bytes[8] = bytes_piuio[8] & bytes_j[1] & bytes_p[1] & bytes_t[1];
-    bytes_f[9] = bytes[9] = bytes_piuio[9] & bytes_j[3] & bytes_p[3] & bytes_t[3];
-    
-    // Frontal buttons. Two formats exist:
-    //  - LX bytes 10/11 (P1/P2), active low, panel order UL,UR,CN,DL,DR
-    //  - PIUIO button board byte 0: bit0 red (UL/UR), bit1 left (DL), bit2 right (DR),
-    //    bit3 green (CN), bits 4..7 the same for P2
-    // bytes_piuiob holds the board format, coming either from a real button board or
-    // derived from a real LXIO / the pads. Only convert it when it does not already
-    // come from a real LXIO, otherwise e.g. UL would come back as UL+UR.
-    {
-        uint8_t fb = bytes_jb[0] & bytes_pb[0] & bytes_tb[0];
-        if(!is_lxio) fb &= bytes_piuiob[0];
-        bytes_fb[0] = bytes_piuiob[0] & bytes_jb[0] & bytes_pb[0] & bytes_tb[0];
-        bytes_fb[1] = bytes_piuiob[1] & bytes_jb[1] & bytes_pb[1] & bytes_tb[1];
-        bytes[10] = bytes_piuio[10] &
-                    ((fb & 0x01)? 0xFF:0xFC) & // UL/UR both on red button
-                    ((fb & 0x02)? 0xFF:0xF7) & // DL on left button
-                    ((fb & 0x04)? 0xFF:0xEF) & // DR on right button
-                    ((fb & 0x08)? 0xFF:0xFB) ; // Center on green button
-        bytes[11] = bytes_piuio[11] &
-                    ((fb & 0x10)? 0xFF:0xFC) & // UL/UR both on red button
-                    ((fb & 0x20)? 0xFF:0xF7) & // DL on left button
-                    ((fb & 0x40)? 0xFF:0xEF) & // DR on right button
-                    ((fb & 0x80)? 0xFF:0xFB) ; // Center on green button
-    }
-    bytes_f[10] = bytes[10];
-    bytes_f[11] = bytes[11];
-    // Probably unused stuff
-    for(int i = 12; i < 16; i++) {
-
-        bytes_f[i] = bytes[i] = bytes_piuio[i]; // Only for testing if actually does something?
-    }
+    // Sensors, coins and the front buttons in LX format (UL and UR apart).
+    // A real LXIO comes out byte for byte: the other sources only add what
+    // they press, and a real button board's red is UL+UR (piuio_input.h)
+    uint8_t lx[16];
+    piuioemu_mix(lx, NULL);
+    credits_coin_guard(&lx[8], &lx[9]); // no coin from a line that starts down (IMPER-116)
+    lx[8] = piuioemu_game_sys(lx[8]);
+    memcpy(bytes, lx, ret);
     //usbi_mutex_unlock(&piuioemu_poll_mutex);
 
     return ret;
@@ -877,10 +912,15 @@ static int piuio_helper_process_data_in(uint8_t* bytes, int size) {
     int ret = min(8, size);
 
     // Fill accordingly
-    bytes_f[s1+0] = bytes[0] = bytes_piuio[s1+0] & bytes_j[0] & bytes_p[0] & bytes_t[0] & bytes_ts[s1];
-    bytes_f[s2+4] = bytes[2] = bytes_piuio[s2+4] & bytes_j[2] & bytes_p[2] & bytes_t[2] & bytes_ts[s2+4];
-    bytes_f[8] = bytes[1] = bytes_piuio[8] & bytes_j[1] & bytes_p[1] & bytes_t[1];
-    bytes_f[9] = bytes[3] = bytes_piuio[9] & bytes_j[3] & bytes_p[3] & bytes_t[3];
+    uint8_t lx[16];
+    uint8_t ans[4];
+    piuioemu_mix(lx, NULL);
+    credits_coin_guard(&lx[8], &lx[9]); // no coin from a line that starts down (IMPER-116)
+    ans[0] = lx[s1+0];
+    ans[1] = piuioemu_game_sys(lx[8]);
+    ans[2] = lx[s2+4];
+    ans[3] = lx[9];
+    memcpy(bytes, ans, min(4, size));
 
     // Only mutex on s1 == 0
     //usbi_mutex_unlock(&piuioemu_poll_mutex);
@@ -903,10 +943,23 @@ static int piuiobutton_helper_process_data(uint8_t* bytes, int size) {
     //poll_piuio_emu();
     int ret = min(16, size);
     memset(bytes, 0xFF, size);
-    bytes_fb[0] = bytes[0] = bytes_piuiob[0] & bytes_jb[0] & bytes_pb[0] & bytes_tb[0];
-    bytes_fb[1] = bytes[1] = bytes_piuiob[1] & bytes_jb[1] & bytes_pb[1] & bytes_tb[1];
+    // A real button board, the front buttons of a real LXIO (UL or UR = red),
+    // the keyboard / network ones, and the pads when they stand in for a
+    // board that is not there (piuio_input.h)
+    uint8_t board[2];
+    piuioemu_mix(NULL, board);
+    memcpy(bytes, board, min(2, size));
     //usbi_mutex_unlock(&piuioemu_poll_mutex);
     return ret;
+}
+
+// The lamps of the button board, as the game writes them (8 bytes)
+static int piuiobutton_helper_process_data_out(const uint8_t* data, int size) {
+    uint8_t lamps[8] = {0};
+    memcpy(lamps, data, min(8, size));
+    memcpy(bytes_lb, lamps, 8);
+    bytes_lb_set = 1;
+    return size;
 }
 
 static int piulxio_libusb_control_transfer(
@@ -1011,8 +1064,9 @@ static int piuiobutton_libusb_control_transfer(
     }
     else
     {
-        // Lamp write from the game (0x40/0xAE): accept it, nothing to drive
-        return wLength;
+        // Lamp write from the game (0x40/0xAE): a real board gets it on the
+        // next poll
+        return piuiobutton_helper_process_data_out(data, wLength);
     }
     PRINTF("Unknown request: %x %x %x %x %x\n", request_type, bRequest, wValue, wIndex, wLength);
     return 0;

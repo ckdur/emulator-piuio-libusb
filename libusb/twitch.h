@@ -3,6 +3,7 @@
 
 extern unsigned char bytes_t[4];
 extern unsigned char bytes_tb[2];
+extern unsigned char bytes_tf[2]; // front buttons in LX format: [0] P1, [1] P2 (`f`)
 extern unsigned char bytes_ts[8]; // per sensor: [0..3] P1 sensor 0..3, [4..7] P2 (`e`)
 extern double fBPM;
 extern unsigned long tlastchange;

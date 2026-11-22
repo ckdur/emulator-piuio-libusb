@@ -25,6 +25,7 @@ unsigned char bytes_l[16];
 unsigned char bytes_f[16];
 unsigned char bytes_t[4];
 unsigned char bytes_tb[2];
+unsigned char bytes_tf[2];
 unsigned char bytes_ts[8];
 int auto_available = 1;
 int auto_1 = -1;
@@ -111,6 +112,24 @@ int main(void) {
     check("client quit: autoplay off", auto_1 == -1 && auto_2 == -1);
     close(s);
     polls(5);
+
+    // Front buttons: `b` is a button board (one red per player), `f` an LXIO
+    // front panel (UL and UR apart, IMPER-113); both let go when the client leaves
+    s = client();
+    ask(s, "b FFEF\n");
+    check("b: button board byte (red P2)", bytes_tb[0] == 0xEF && bytes_tb[1] == 0xFF && bytes_tf[0] == 0xFF && bytes_tf[1] == 0xFF);
+    ask(s, "b FFFF\nf FDFE\n");
+    check("f: LX front buttons, UL of P1 and UR of P2 alone", bytes_tf[0] == 0xFE && bytes_tf[1] == 0xFD && bytes_tb[0] == 0xFF);
+    // the status line: TEST is the first of the third group, SERVICE the third
+    memset(bytes_f, 0xFF, sizeof(bytes_f));
+    bytes_f[8] = (unsigned char)~0x02;
+    check("req 2: TEST (0x02) is field 1 of the third group", strcmp(ask(s, "req 2\n"), "11111 11111 01111\n") == 0);
+    bytes_f[8] = (unsigned char)~0x40;
+    check("req 2: SERVICE (0x40) is field 3", strcmp(ask(s, "req 2\n"), "11111 11111 11011\n") == 0);
+    bytes_f[8] = 0xFF;
+    close(s);
+    polls(10);
+    check("connection dropped: front buttons released", bytes_tf[0] == 0xFF && bytes_tf[1] == 0xFF && bytes_tb[0] == 0xFF);
 
     auto_available = 0;             // a game with no known flag
     s = client();

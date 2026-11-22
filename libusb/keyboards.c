@@ -135,6 +135,7 @@ other_init_keyboards:
 
 char bytes_b[4] = {0xFF,0xFF,0xFF,0xFF};
 char bytes_w[2] = {0xFF,0xFF};
+char bytes_wf[2] = {0xFF,0xFF};
 
 char load_XNextEvent = 0;
 int (*XNextEvent_Original)(Display *display, XEvent *event_return);
@@ -257,6 +258,16 @@ int XNextEventEMU(void *disp, void *event_ret)
         if((ks == XK_KP_Enter))
             SETMAPKEY(bytes_w, 0, 0x80);
 
+        // The two reds of an LXIO front panel, one at a time (see poll_keyboards)
+        if((ks == XK_Delete))
+            SETMAPKEY(bytes_wf, 0, 0x1);
+        if((ks == XK_Next))
+            SETMAPKEY(bytes_wf, 0, 0x2);
+        if((ks == XK_KP_Divide))
+            SETMAPKEY(bytes_wf, 1, 0x1);
+        if((ks == XK_KP_Multiply))
+            SETMAPKEY(bytes_wf, 1, 0x2);
+
         //printf("Final state: %x\n", *(int*)bytes_p);
 
         /*if(bFastFire)
@@ -278,6 +289,7 @@ int XNextEventEMU(void *disp, void *event_ret)
 void poll_keyboards(void) {
   unsigned char keyb_in_p[4] = {0xFF, 0xFF, 0xFF, 0xFF};
   unsigned char keyb_in_pb[2] = {0xFF, 0xFF};
+  unsigned char keyb_in_pf[2] = {0xFF, 0xFF};
   for(int i = 0; i < nKeyboards; i++) if(kbds[i] != NULL)
   {
     memset(key_map, 0, sizeof(key_map));    //  Initate the array to zero's
@@ -384,6 +396,25 @@ void poll_keyboards(void) {
         byte |= (0x80);
     keyb_in_pb[0] &= ~byte;
     keyb_in_pb[1] &= 0xFF;
+
+    // Front buttons. Backspace / keypad minus are the red button of a
+    // button board: an LXIO game gets UL+UR from them, like from the board
+    // (it has one red per player). The front panel of an LXIO has two reds:
+    // Delete = UL and Page Down = UR for P1 (the keys above the Left and
+    // Right arrows, which are DL and DR), keypad / = UL and keypad * = UR
+    // for P2. A button-board game takes either as its red (IMPER-113).
+    byte = 0;
+    if(keyp(key_map, KEY_DELETE))
+        byte |= (0x1);
+    if(keyp(key_map, KEY_PAGEDOWN))
+        byte |= (0x2);
+    keyb_in_pf[0] &= ~byte;
+    byte = 0;
+    if(keyp(key_map, KEY_KPSLASH))
+        byte |= (0x1);
+    if(keyp(key_map, KEY_KPASTERISK))
+        byte |= (0x2);
+    keyb_in_pf[1] &= ~byte;
   }
   for(int i = 0; i < 4; i++) {
     keyb_in_p[i] &= bytes_b[i];
@@ -391,6 +422,10 @@ void poll_keyboards(void) {
   for(int i = 0; i < 2; i++) {
     keyb_in_pb[i] &= bytes_w[i];
   }
+  for(int i = 0; i < 2; i++) {
+    keyb_in_pf[i] &= bytes_wf[i];
+  }
   memcpy(bytes_p, keyb_in_p, 4);
   memcpy(bytes_pb, keyb_in_pb, 2);
+  memcpy(bytes_pf, keyb_in_pf, 2);
 }
