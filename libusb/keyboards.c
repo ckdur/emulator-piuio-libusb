@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "keyboards.h"
+#include "profile_keys.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -286,7 +287,9 @@ int XNextEventEMU(void *disp, void *event_ret)
 }
 
 #define keyp(keymap, key) (keymap[key/8] & (1 << (key % 8)))
+static struct profile_keys prof_keys;
 void poll_keyboards(void) {
+  int f9_held = 0, f10_held = 0;
   unsigned char keyb_in_p[4] = {0xFF, 0xFF, 0xFF, 0xFF};
   unsigned char keyb_in_pb[2] = {0xFF, 0xFF};
   unsigned char keyb_in_pf[2] = {0xFF, 0xFF};
@@ -370,6 +373,8 @@ void poll_keyboards(void) {
     if(keyp(key_map, KEY_F12))
         byte |= (0x80);
     keyb_in_p[1] &= ~byte;
+    if(keyp(key_map, KEY_F9)) f9_held = 1;
+    if(keyp(key_map, KEY_F10)) f10_held = 1;
 
     if(keyp(key_map, KEY_SPACE))
     {
@@ -415,6 +420,11 @@ void poll_keyboards(void) {
     if(keyp(key_map, KEY_KPASTERISK))
         byte |= (0x2);
     keyb_in_pf[1] &= ~byte;
+  }
+  {
+    const char *l[2];
+    int n = profile_keys_step(&prof_keys, f9_held, f10_held, l);
+    for(int i = 0; i < n; i++) profile_keys_send(l[i]);
   }
   for(int i = 0; i < 4; i++) {
     keyb_in_p[i] &= bytes_b[i];
