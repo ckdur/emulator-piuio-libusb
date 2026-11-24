@@ -37,7 +37,7 @@ int main(void) {
     check("reader gets the line", read(rd, b, sizeof(b) - 1) == 4 && !strcmp(b, "2 @\n"));
     close(rd);
     unlink(path);
-    // ampass.so's fifo gets "1" / "2"
+    // ampass.so's fifo gets the same line ("@": its key toggle, ampass.c)
     char ap[] = "/tmp/pk_test_ampass";
     unlink(ap);
     setenv("_AMPASS_FIFO", ap, 1);
@@ -45,7 +45,7 @@ int main(void) {
     rd = open(ap, O_RDWR | O_NONBLOCK);
     check("only ampass listens: send ok", profile_keys_send("2 @") == 0);
     memset(b, 0, sizeof(b));
-    check("ampass fifo gets the bare side", read(rd, b, sizeof(b) - 1) == 2 && !strcmp(b, "2\n"));
+    check("ampass fifo gets the same line", read(rd, b, sizeof(b) - 1) == 4 && !strcmp(b, "2 @\n"));
     check("savegen fifo is not created by the send", access(path, F_OK) != 0);
     close(rd);
     unlink(ap);

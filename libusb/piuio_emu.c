@@ -385,6 +385,8 @@ static void init_piuio_emu(void) {
     //usbi_mutex_init(&piuioemu_poll_mutex);
     if(file_exists("/SAVE/.keyboard"))
         init_keyboards();
+    else
+        init_profile_keys();    // only F9 / F10 of a keyboard: the pads stay the board's
 
     KeyHandler_Twitch_Init();
     check_autoplay();

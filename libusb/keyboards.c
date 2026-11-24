@@ -9,6 +9,8 @@
 #include <linux/input.h>
 #include <stdbool.h>
 #include <dlfcn.h>
+#include <time.h>
+#include <sys/ioctl.h>
 
 // X11 includes
 #include <X11/Xlib.h>
@@ -24,6 +26,13 @@ char key_map2[KEY_MAX/8+1];
 int nKeyboards = 0;
 
 #define MAX_LINE_LENGTH 512
+// tests/test_keyboards_profile.c points these into a folder of its own
+#ifndef KEYBOARDS_PROC_DEVICES
+#define KEYBOARDS_PROC_DEVICES "/proc/bus/input/devices"
+#endif
+#ifndef KEYBOARDS_DEV_INPUT
+#define KEYBOARDS_DEV_INPUT "/dev/input"
+#endif
 static bool is_keyboard_device(char *ev_line) {
   // Check if EV line contains keyboard capability (e.g., EV=120013)
   return (strstr(ev_line, "EV=120013") != NULL) || (strstr(ev_line, "EV=1") != NULL);
@@ -40,13 +49,14 @@ static void extract_event_handler(char *handlers_line, char *event_handler) {
   }
 }
 
-/* Initializes the keyboards */
-char en_load_XNextEvent = 0;
-void init_keyboards(void) {
-  en_load_XNextEvent = 1;
-  FILE *file = fopen("/proc/bus/input/devices", "r");
+/* Opens every keyboard of /proc/bus/input/devices (else /dev/input/by-path/
+ * *event-kbd) and adds it to kbds. -> how many were found. Quiet unless
+ * `verbose`. */
+static int scan_keyboards(int verbose) {
+  int found = 0;
+  FILE *file = fopen(KEYBOARDS_PROC_DEVICES, "r");
   if (!file) {
-    perror("Error opening /proc/bus/input/devices");
+    if(verbose) perror("Error opening /proc/bus/input/devices");
     goto other_init_keyboards;
   }
 
@@ -60,38 +70,37 @@ void init_keyboards(void) {
     // Check if we reached the end of the current device block
     if (strcmp(line, "\n") == 0) {
       // If we identified it as a keyboard, print the details
-      if (is_keyboard) {
-        printf("Keyboard found:\n");
-        printf("  Name: %s", name);
-        printf("  Event Handler: %s", event_handler);
-        printf("\n");
-        
+      if (is_keyboard && event_handler[0]) {
+        if(verbose) {
+          printf("Keyboard found:\n");
+          printf("  Name: %s", name);
+          printf("  Event Handler: %s", event_handler);
+          printf("\n");
+        }
+
         char event_handler_file[MAX_LINE_LENGTH+32];
-        snprintf(event_handler_file, MAX_LINE_LENGTH+32, "/dev/input/%s", event_handler);
-        printf("  Opening file: %s\n", event_handler_file);
+        // the handler ends in "\n" when it is the last one of the line
+        event_handler[strcspn(event_handler, "\r\n")] = 0;
+        snprintf(event_handler_file, MAX_LINE_LENGTH+32, KEYBOARDS_DEV_INPUT "/%s", event_handler);
+        if(verbose) printf("  Opening file: %s\n", event_handler_file);
         FILE* keybHandle = fopen(event_handler_file, "r");
         if(keybHandle == NULL) {
-          printf("  Not opened\n");
-          continue;
-        }
-        
-        if(nKeyboards == 0) {
-          nKeyboards++;
-          kbds = (FILE**)malloc(nKeyboards*sizeof(FILE*));
+          if(verbose) printf("  Not opened\n");
         }
         else {
           FILE **other_kbds = kbds;
           kbds = (FILE**)malloc((nKeyboards+1)*sizeof(FILE*));
-          memcpy(kbds, other_kbds, (nKeyboards)*sizeof(FILE*));
+          if(nKeyboards) memcpy(kbds, other_kbds, (nKeyboards)*sizeof(FILE*));
           free(other_kbds);
-          nKeyboards++;
+          kbds[nKeyboards++] = keybHandle;
+          found++;
         }
-        kbds[nKeyboards-1] = keybHandle;
       }
       // Reset variables for the next device
       is_keyboard = false;
       name[0] = '\0';
       handlers[0] = '\0';
+      event_handler[0] = '\0';
       continue;
     }
 
@@ -115,23 +124,61 @@ void init_keyboards(void) {
 
   fclose(file);
 other_init_keyboards:
-  if(nKeyboards == 0) {
+  if(found == 0) {
     glob_t keyboards;
-    glob("/dev/input/by-path/*event-kbd", 0, 0, &keyboards);
-
-    if(keyboards.gl_pathc > 0) {
-        nKeyboards = keyboards.gl_pathc;
-        printf("Found %d keyboards\n", nKeyboards);
-        kbds = (FILE**)malloc(nKeyboards*sizeof(FILE*));
-        char **p;
-        int n;
-        for(p = keyboards.gl_pathv, n = 0; n < (int)(keyboards.gl_pathc); p++, n++) {
-            kbds[n] = fopen(*p, "r");
-            printf("Opening file: %s\n", *p);
+    if(glob(KEYBOARDS_DEV_INPUT "/by-path/*event-kbd", 0, 0, &keyboards) == 0 && keyboards.gl_pathc > 0) {
+        if(verbose) printf("Found %d keyboards\n", (int)keyboards.gl_pathc);
+        for(size_t n = 0; n < keyboards.gl_pathc; n++) {
+            FILE *k = fopen(keyboards.gl_pathv[n], "r");
+            if(verbose) printf("Opening file: %s\n", keyboards.gl_pathv[n]);
+            if(k == NULL) continue;
+            FILE **other_kbds = kbds;
+            kbds = (FILE**)malloc((nKeyboards+1)*sizeof(FILE*));
+            if(nKeyboards) memcpy(kbds, other_kbds, (nKeyboards)*sizeof(FILE*));
+            free(other_kbds);
+            kbds[nKeyboards++] = k;
+            found++;
         }
     }
     globfree(&keyboards);
   }
+  return found;
+}
+
+/* Initializes the keyboards: keyboard mode (/SETTINGS/.keyboard), the
+ * keyboard is the PIUIO (pads, buttons; F9 / F10 included) */
+char en_load_XNextEvent = 0;
+void init_keyboards(void) {
+  en_load_XNextEvent = 1;
+  scan_keyboards(1);
+}
+
+/* Without keyboard mode: a keyboard is only read for F9 / F10 (the machine's
+ * default profile of P1 / P2, profile_keys.h). The pads and buttons keep
+ * coming from the real board alone: nothing else of the keyboard is looked
+ * at, and the X11 key map stays off. No keyboard: nothing happens, and the
+ * devices are looked for again every PROFILE_KEYS_RESCAN_MS (one plugged in
+ * later). */
+static int profile_keys_only = 0;
+static struct timespec profile_keys_next_scan, profile_keys_next_poll;
+#define PROFILE_KEYS_POLL_MS 25
+#define PROFILE_KEYS_RESCAN_MS 5000
+void init_profile_keys(void) {
+  profile_keys_only = 1;
+  scan_keyboards(0);
+  clock_gettime(CLOCK_MONOTONIC, &profile_keys_next_scan);
+  profile_keys_next_poll = profile_keys_next_scan;
+}
+
+static int profile_keys_due(struct timespec *next, long ms) {
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  if(now.tv_sec < next->tv_sec || (now.tv_sec == next->tv_sec && now.tv_nsec < next->tv_nsec))
+    return 0;
+  next->tv_sec = now.tv_sec + ms / 1000;
+  next->tv_nsec = now.tv_nsec + (ms % 1000) * 1000000L;
+  if(next->tv_nsec >= 1000000000L) { next->tv_sec++; next->tv_nsec -= 1000000000L; }
+  return 1;
 }
 
 char bytes_b[4] = {0xFF,0xFF,0xFF,0xFF};
@@ -288,11 +335,39 @@ int XNextEventEMU(void *disp, void *event_ret)
 
 #define keyp(keymap, key) (keymap[key/8] & (1 << (key % 8)))
 static struct profile_keys prof_keys;
+// F9 / F10 alone (no keyboard mode): at most every PROFILE_KEYS_POLL_MS
+static void poll_profile_keys_only(void) {
+  if(nKeyboards == 0) {
+    if(profile_keys_due(&profile_keys_next_scan, PROFILE_KEYS_RESCAN_MS)) scan_keyboards(0);
+    if(nKeyboards == 0) return;
+  }
+  if(!profile_keys_due(&profile_keys_next_poll, PROFILE_KEYS_POLL_MS)) return;
+  int f9_held = 0, f10_held = 0;
+  for(int i = 0; i < nKeyboards; i++) if(kbds[i] != NULL) {
+    memset(key_map, 0, sizeof(key_map));
+    if(ioctl(fileno(kbds[i]), EVIOCGKEY(sizeof(key_map)), key_map) < 0) continue;   // unplugged
+    if(keyp(key_map, KEY_F9)) f9_held = 1;
+    if(keyp(key_map, KEY_F10)) f10_held = 1;
+  }
+  const char *l[2];
+  int n = profile_keys_step(&prof_keys, f9_held, f10_held, l);
+  for(int i = 0; i < n; i++) profile_keys_send(l[i]);
+}
+
 void poll_keyboards(void) {
   int f9_held = 0, f10_held = 0;
   unsigned char keyb_in_p[4] = {0xFF, 0xFF, 0xFF, 0xFF};
   unsigned char keyb_in_pb[2] = {0xFF, 0xFF};
   unsigned char keyb_in_pf[2] = {0xFF, 0xFF};
+  if(profile_keys_only) {
+    // the keyboard is no PIUIO here: bytes_p / bytes_pb / bytes_pf stay
+    // "nothing pressed" (bytes_b & co. too: XNextEventEMU is off)
+    poll_profile_keys_only();
+    memcpy(bytes_p, keyb_in_p, 4);
+    memcpy(bytes_pb, keyb_in_pb, 2);
+    memcpy(bytes_pf, keyb_in_pf, 2);
+    return;
+  }
   for(int i = 0; i < nKeyboards; i++) if(kbds[i] != NULL)
   {
     memset(key_map, 0, sizeof(key_map));    //  Initate the array to zero's

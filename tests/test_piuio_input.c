@@ -181,6 +181,7 @@ int true_libusb_interrupt_transfer(libusb_device_handle *h, unsigned char ep,
 
 // The other parts of the shim, not under test here
 void init_keyboards(void) {}
+void init_profile_keys(void) {}
 void poll_keyboards(void) {}
 int XNextEventEMU(void *d, void *e) { (void)d; (void)e; return 0; }
 void KeyHandler_Twitch_Init(void) {}

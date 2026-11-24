@@ -1,14 +1,19 @@
-// F9 / F10 in keyboard mode (/SETTINGS/.keyboard): put the machine's default
-// profile of player 1 / player 2 in, for the old USB-profile games (NX2, NXA,
-// Fiesta .. Fiesta 2). The shim only reports the key press: the line "1 @" /
-// "2 @" goes to savegen.so's card fifo, which knows whether that side is in
-// already (second press = out). Where savegen is not loaded nobody reads the fifo
-// and the write fails with ENXIO: nothing happens. The newer games (ampass.so:
-// Prime 2, XX, Phoenix) have the same keys through X11, but the game does not
-// see the PS/2 keys there (no focus / grab): the shim sends the tap to
-// ampass.so's fifo too, which works whatever the focus is.
+// F9 / F10: the machine's default profile of player 1 / player 2, in or out.
+// Read from any keyboard, with or without keyboard mode (/SETTINGS/.keyboard):
+// without it keyboards.c looks at these two keys only, so a keyboard on a
+// cabinet never acts as pads or buttons (init_profile_keys). The shim only
+// reports the key press: the line "1 @" / "2 @" goes to
+//  - savegen.so's card fifo (old USB-profile games NX2, NXA, Fiesta .. Fiesta 2),
+//    which knows whether that side is in already (second press = out);
+//  - ampass.so's fifo (Prime 2, XX, Phoenix; the same keys through X11 do not
+//    reach the game: no focus / grab). There "@" taps the [PN] card when the
+//    automatic taps are off (keyboard mode), and takes that side's card off
+//    the reader / puts it back when they are on (a real cabinet: the default
+//    profile logs in by itself, F9 lets that side play without it).
+// Where neither is loaded nobody reads the fifos and the write fails with
+// ENXIO: nothing happens.
 //
-// Host test: ../tests/test_profile_keys.c
+// Host tests: ../tests/test_profile_keys.c, ../tests/test_keyboards_profile.c
 #ifndef PROFILE_KEYS_H
 #define PROFILE_KEYS_H
 
@@ -49,20 +54,17 @@ static inline int profile_keys_write(const char *fp, const char *line)
 }
 
 // Tell whoever listens that side `line[0]` ("1 @" / "2 @") was asked for:
-// savegen.so's card fifo ("1 @" = default profile in / out) and ampass.so's
-// fifo ("1" = tap reader 1 with the [P1] card of ampass.ini, i.e. the
-// emulated card whose profile is /SETTINGS/profiles/P1). A game has one of
-// them; the other is not there, and its write fails at once, never blocking
-// and never creating the fifo. 0 if one took it.
+// savegen.so's card fifo and ampass.so's fifo get the same line. A game has
+// one of them; the other is not there, and its write fails at once, never
+// blocking and never creating the fifo. 0 if one took it.
 static inline int profile_keys_send(const char *line)
 {
   const char *fp = getenv("_SAVEGEN_FIFO");
   if(fp == NULL || *fp == 0) fp = "/tmp/savegen/cards.fifo";
   const char *ap = getenv("_AMPASS_FIFO");
   if(ap == NULL || *ap == 0) ap = "/tmp/ampass.fifo";
-  char side[2] = { line[0], 0 };
   int a = profile_keys_write(fp, line);
-  int b = profile_keys_write(ap, side);
+  int b = profile_keys_write(ap, line);
   return (a == 0 || b == 0) ? 0 : -1;
 }
 
