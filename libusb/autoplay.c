@@ -1019,6 +1019,9 @@ static int autoplay_code_ok(struct autoplay_construct* con) {
 }
 
 void check_autoplay(void) {
+    // A source port (mk3_linux_ports/mk5) carries the MK3 executable's strings but reports
+    // its own flag with report_autoplay(): never poke the table's MK3 addresses into it.
+    if(getenv("_PIU_SOURCE_PORT") != NULL) return;
     struct sigscan_image* img = autoplay_get_image();
     for(int i = 0; i < size_all_constructs; i++) {
         struct autoplay_construct* con = &all_contstructs[i];
