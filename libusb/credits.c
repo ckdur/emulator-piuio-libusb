@@ -90,35 +90,10 @@ static const char* pool_path(void)
     return p != NULL && p[0] ? p : CREDITS_FILE;
 }
 
-static void pool_load(struct credits_pool* p)
-{
-    char buf[512];
-    long n = -1;
-    int fd = syscall(SYS_open, pool_path(), O_RDONLY, 0);
-    if(fd >= 0) {
-        n = syscall(SYS_read, fd, buf, sizeof(buf) - 1);
-        syscall(SYS_close, fd);
-    }
-    buf[n > 0 ? n : 0] = 0;
-    credits_pool_parse(buf, p);
-}
+static void pool_load(struct credits_pool* p) { credits_pool_load_files(pool_path(), p); }
 
-static void pool_save(const struct credits_pool* p)
-{
-    char buf[256], tmp[300];
-    int n = credits_pool_format(p, buf, sizeof(buf));
-    int fd;
-    snprintf(tmp, sizeof(tmp), "%s.tmp", pool_path());
-    fd = syscall(SYS_open, tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if(fd < 0) return;
-    if(syscall(SYS_write, fd, buf, n) != n) {
-        syscall(SYS_close, fd);
-        return;
-    }
-    syscall(SYS_fsync, fd);
-    syscall(SYS_close, fd);
-    syscall(SYS_rename, tmp, pool_path());
-}
+// Two copies with a generation and a CRC: see credits_logic.h ("Two copies...").
+static void pool_save(const struct credits_pool* p) { credits_pool_save_files(pool_path(), p); }
 
 // Only the two numbers this process owns are replaced: the options belong to
 // whoever edits the file (the menu's setting, the operator).

@@ -22,11 +22,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/syscall.h>
 
 struct credits_pool {
     int credits;
     int coins;
     int enabled;
+    unsigned gen;   // generation of the file it was read from (see the two copies below)
 };
 
 #define CREDITS_POOL_MAX 9999
@@ -38,6 +42,7 @@ static inline void credits_pool_defaults(struct credits_pool* p)
     p->credits = 0;
     p->coins = 0;
     p->enabled = 1;
+    p->gen = 0;
 }
 
 // Reads "key=value" lines; sections are only for the reader's eyes. Unknown
@@ -60,6 +65,7 @@ static inline void credits_pool_parse(const char* txt, struct credits_pool* p)
                 if(strcmp(line, "credits") == 0) p->credits = credits_clamp(v, 0, CREDITS_POOL_MAX);
                 else if(strcmp(line, "coins") == 0) p->coins = credits_clamp(v, 0, CREDITS_POOL_MAX);
                 else if(strcmp(line, "enabled") == 0) p->enabled = v != 0;
+                else if(strcmp(line, "gen") == 0) p->gen = (unsigned)strtoul(eq + 1, NULL, 10);
             }
         }
         if(end == NULL) break;
@@ -71,6 +77,154 @@ static inline int credits_pool_format(const struct credits_pool* p, char* out, i
 {
     return snprintf(out, n, "[credits]\ncredits=%d\ncoins=%d\n[options]\nenabled=%d\n",
         p->credits, p->coins, p->enabled);
+}
+
+// ---- Two copies, a generation and a check (a power cut at any moment) ----------
+// The machine can lose power at any time (the cabinet's switch, the supply). The
+// pool is therefore kept in two files, /SETTINGS/credits.ini and the previous
+// generation, credits.ini.prev, each with a generation counter and the CRC-32 of
+// the lines above its "check=" line. A save writes a temporary file and syncs it,
+// moves the current file to .prev, renames the temporary one in and syncs the
+// folder: at every step at least one complete, valid copy exists. A load takes
+// the valid copy with the higher generation. A file without a "check=" line
+// (written by an older shim, or edited by hand) is accepted as it is; a file
+// whose check does not match (a damaged disk) is ignored in favour of the other
+// copy. Every new file starts with the marker line below, and a file that has the
+// marker must have a matching check: a half-written one is therefore damaged, it
+// cannot pass for an older file. To edit the file by hand, delete the marker line
+// and the check= line (and keep the credits= line: a file with none is damaged).
+#define CREDITS_MARK "#ntdec-credits-v2\n"
+static inline unsigned credits_crc32(const char* s, size_t n)
+{
+    unsigned crc = 0xFFFFFFFFu;
+    size_t i;
+    int j;
+    for(i = 0; i < n; i++) {
+        crc ^= (unsigned char)s[i];
+        for(j = 0; j < 8; j++) crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+    }
+    return ~crc;
+}
+
+// The pool as text with its generation and check line.
+static inline int credits_pool_format_ck(const struct credits_pool* p, char* out, int n)
+{
+    int k = snprintf(out, n, CREDITS_MARK "[credits]\ncredits=%d\ncoins=%d\n[options]\nenabled=%d\ngen=%u\n",
+        p->credits, p->coins, p->enabled, p->gen);
+    int m;
+    if(k < 0 || k >= n) return -1;
+    m = snprintf(out + k, n - k, "check=%08x\n", credits_crc32(out, (size_t)k));
+    if(m < 0 || k + m >= n) return -1;
+    return k + m;
+}
+
+// 0: usable, the check matches; 3: usable, there is no check line (an older
+// shim or a hand edit); 1: damaged (the check does not match); 2: nothing
+// there. 'p' is the defaults unless the result is 0 or 3.
+static inline int credits_pool_parse_ck(const char* txt, struct credits_pool* p)
+{
+    const char* line;
+    const char* ck = NULL;
+    credits_pool_defaults(p);
+    if(txt == NULL || *txt == 0) return 2;
+    for(line = txt; line != NULL && *line; ) {
+        if(strncmp(line, "check=", 6) == 0) ck = line;
+        line = strchr(line, '\n');
+        if(line) line++;
+    }
+    if(strncmp(txt, CREDITS_MARK, strlen(CREDITS_MARK)) == 0) {      // a file of this version: the check is mandatory
+        char* endp = NULL;
+        unsigned want;
+        if(ck == NULL) return 1;
+        want = (unsigned)strtoul(ck + 6, &endp, 16);
+        if(endp == ck + 6 || credits_crc32(txt, (size_t)(ck - txt)) != want) return 1;
+        credits_pool_parse(txt, p);
+        return 0;
+    }
+    if(strstr(txt, "credits=") == NULL) return 1;                       // not a pool file at all
+    credits_pool_parse(txt, p);
+    return 3;
+}
+
+// Which copy to use: the usable one with the higher generation (the main file on
+// a tie); a file with no check line counts as the newest (it is what an
+// operator just edited, or what an older shim wrote and there is no other);
+// none usable: the defaults. Returns 0 (a), 1 (b) or -1 (neither).
+static inline int credits_pool_choose(const char* a, const char* b, struct credits_pool* out)
+{
+    struct credits_pool pa, pb;
+    int ra = credits_pool_parse_ck(a, &pa);
+    int rb = credits_pool_parse_ck(b, &pb);
+    int va = ra == 0 || ra == 3;
+    int vb = rb == 0 || rb == 3;
+    unsigned ga = ra == 3 ? ~0u : pa.gen;
+    unsigned gb = rb == 3 ? ~0u : pb.gen;
+    if(va && (!vb || ga >= gb)) { *out = pa; return 0; }
+    if(vb) { *out = pb; return 1; }
+    credits_pool_defaults(out);
+    return -1;
+}
+
+// Raw system calls: inside a game, open() and fopen() are other preloads' (titledelay.so
+// redirects "/SETTINGS/..." into the game's save folder).
+static inline long credits_sys_read_file(const char* path, char* buf, size_t n)
+{
+    long got = -1;
+    int fd = (int)syscall(SYS_open, path, O_RDONLY, 0);
+    if(fd >= 0) {
+        got = syscall(SYS_read, fd, buf, n - 1);
+        syscall(SYS_close, fd);
+    }
+    buf[got > 0 ? got : 0] = 0;
+    return got;
+}
+
+static inline void credits_pool_load_files(const char* path, struct credits_pool* p)
+{
+    char a[512], b[512], prev[320];
+    snprintf(prev, sizeof(prev), "%s.prev", path);
+    credits_sys_read_file(path, a, sizeof(a));
+    credits_sys_read_file(prev, b, sizeof(b));
+    credits_pool_choose(a, b, p);
+}
+
+static inline void credits_pool_sync_dir(const char* path)
+{
+    char dir[320];
+    char* slash;
+    int fd;
+    snprintf(dir, sizeof(dir), "%s", path);
+    slash = strrchr(dir, '/');
+    if(slash == NULL) return;
+    if(slash == dir) slash[1] = 0; else *slash = 0;
+    fd = (int)syscall(SYS_open, dir, O_RDONLY | O_DIRECTORY, 0);
+    if(fd < 0) return;
+    syscall(SYS_fsync, fd);
+    syscall(SYS_close, fd);
+}
+
+// Saves 'p' as generation p->gen + 1. A step that fails leaves the files as they were.
+static inline void credits_pool_save_files(const char* path, const struct credits_pool* p)
+{
+    char buf[256], tmp[320], prev[320];
+    struct credits_pool q = *p;
+    int n, fd;
+    q.gen = p->gen + 1;
+    n = credits_pool_format_ck(&q, buf, sizeof(buf));
+    if(n <= 0) return;
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+    snprintf(prev, sizeof(prev), "%s.prev", path);
+    fd = (int)syscall(SYS_open, tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if(fd < 0) return;
+    if(syscall(SYS_write, fd, buf, n) != n) {
+        syscall(SYS_close, fd);
+        return;
+    }
+    syscall(SYS_fsync, fd);
+    syscall(SYS_close, fd);
+    syscall(SYS_rename, path, prev);     // the current file becomes the previous generation
+    if(syscall(SYS_rename, tmp, path) != 0) syscall(SYS_rename, prev, path);   // could not: put it back
+    credits_pool_sync_dir(path);
 }
 
 // ---- Coin switch --------------------------------------------------------
