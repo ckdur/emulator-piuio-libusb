@@ -349,7 +349,7 @@ static void poll_profile_keys_only(void) {
     if(keyp(key_map, KEY_F9)) f9_held = 1;
     if(keyp(key_map, KEY_F10)) f10_held = 1;
   }
-  const char *l[2];
+  int l[2];
   int n = profile_keys_step(&prof_keys, f9_held, f10_held, l);
   for(int i = 0; i < n; i++) profile_keys_send(l[i]);
 }
@@ -497,7 +497,7 @@ void poll_keyboards(void) {
     keyb_in_pf[1] &= ~byte;
   }
   {
-    const char *l[2];
+    int l[2];
     int n = profile_keys_step(&prof_keys, f9_held, f10_held, l);
     for(int i = 0; i < n; i++) profile_keys_send(l[i]);
   }

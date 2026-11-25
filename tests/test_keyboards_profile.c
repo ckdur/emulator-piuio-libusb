@@ -107,13 +107,14 @@ int main(void)
         press(KEY_F9, 1);
         step();
         check("F9: \"1 @\" to savegen", fifo_line(sg, b, sizeof(b)) == 4 && !strcmp(b, "1 @\n"));
-        check("F9: \"1 @\" to ampass", fifo_line(am, b, sizeof(b)) == 4 && !strcmp(b, "1 @\n"));
+        check("F9: \"1\" to ampass (tap the [P1] uid)", fifo_line(am, b, sizeof(b)) == 2 && !strcmp(b, "1\n"));
         check("  pads still untouched (F9 is no pad bit here)", all_ff());
         step();
         check("F9 held: one press only", fifo_line(sg, b, sizeof(b)) == 0);
         press(KEY_F9, 0); press(KEY_F10, 1);
         step();
         check("F10: \"2 @\"", fifo_line(sg, b, sizeof(b)) == 4 && !strcmp(b, "2 @\n"));
+        check("F10: \"2\" to ampass", fifo_line(am, b, sizeof(b)) == 2 && !strcmp(b, "2\n"));
         int before = ioctls;
         for(int i = 0; i < 100; i++) poll_keyboards();      // the poll thread runs every ~0.5 ms
         check("rate limited: at most one read in 100 back-to-back polls", ioctls - before <= 1);
