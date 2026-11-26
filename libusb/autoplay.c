@@ -1108,6 +1108,10 @@ void API_EXPORTED report_autoplay(struct autoplay_construct* con) {
     game_ver = con->ver;
     auto_val = con->const_val;
     auto_chosen = con;
+    // no flag in the table (Infinity, an id-only match): nothing to probe; memcheck's
+    // deliberate SIGSEGV on NULL stops a debugger for nothing
+    if((player1_auto == NULL || player2_auto == NULL) && !skip_mem)
+        return;
     if(!(memcheck(player1_auto) == 0 && memcheck(player2_auto) == 0) && !skip_mem)
         return;
     auto_available = 1;
