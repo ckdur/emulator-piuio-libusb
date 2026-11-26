@@ -23,6 +23,7 @@
 #include "credits_logic.h"
 #include "piuio_emu.h"
 
+#include <dlfcn.h>
 #include <errno.h>
 #include <stddef.h>
 #include <fcntl.h>
@@ -41,7 +42,9 @@
 
 #define CREDITS_FILE "/SETTINGS/credits.ini"
 #define CREDITS_TICK_MS 50        // memory and file work, at most this often
-#define CREDITS_SETTLE_MS 3000    // a game's numbers must hold this long before the restore
+#define CREDITS_SETTLE_MS 3000    // a game's numbers must hold this long before the restore (no frame counter)
+#define CREDITS_FRAMES_SETTLE_MS 200  // ... once the game draws frames (forcemode.so ntdec_frames)
+#define CREDITS_FRAMES_MIN 2      // frames shown: the main loop runs
 #define CREDITS_REPRICE_MS 15000  // after the restore: the game may still load its price
 
 #include "credits_table.h"
@@ -313,7 +316,14 @@ static void game_poll(long now)
     if(!restored) {
         struct credits_pool p;
         int coins;
-        if(now - valid_since < CREDITS_SETTLE_MS) return;
+        // The game's first frames mean it has loaded (its settings, its own coin counter)
+        // and its main loop runs: the credits go in then. Without forcemode.so's frame
+        // counter, the numbers must hold CREDITS_SETTLE_MS.
+        static volatile unsigned long* frames;
+        static int frames_looked;
+        if(!frames_looked) { frames = (volatile unsigned long*)dlsym(RTLD_DEFAULT, "ntdec_frames"); frames_looked = 1; }
+        if(frames ? (*frames < CREDITS_FRAMES_MIN || now - valid_since < CREDITS_FRAMES_SETTLE_MS)
+                  : now - valid_since < CREDITS_SETTLE_MS) return;
         pool_load(&p);
         coins = credits_restore(&g, &p, real_coins, &excess);
         if(game_set_coins(coins, g.cpc) != 0) return;
