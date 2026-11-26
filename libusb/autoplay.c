@@ -521,6 +521,9 @@ struct autoplay_construct all_contstructs[] = {
         .demo_var = (void*)0x81c5f41,
         .p1_a = (void*)0x9e34d2c,
         .p2_a = (void*)0x9e37460,
+        // like NX2 1.54/1.60: autoplay ON writes 1 to the flag. Without it the flag got 0
+        // (auto_val) and NX2 CN crashed at 0x080c333b on the next stage (2026-11-27 credit run)
+        .const_val = 1,
     },
     // PIU NXA v10
     /*
