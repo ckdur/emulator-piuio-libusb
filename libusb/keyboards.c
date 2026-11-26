@@ -39,13 +39,16 @@ static bool is_keyboard_device(char *ev_line) {
 }
 
 static void extract_event_handler(char *handlers_line, char *event_handler) {
-  char *token = strtok(handlers_line, " ");
+  // strtok_r: this can run on the shim's poll thread (the F9/F10 rescan) while
+  // the game itself is in the middle of a strtok parse (IMPER-133)
+  char *save = NULL;
+  char *token = strtok_r(handlers_line, " ", &save);
   while (token != NULL) {
     if (strncmp(token, "event", 5) == 0) {
       strncpy(event_handler, token, MAX_LINE_LENGTH - 1);
       break;
     }
-    token = strtok(NULL, " ");
+    token = strtok_r(NULL, " ", &save);
   }
 }
 
