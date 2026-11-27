@@ -367,6 +367,7 @@ int piuioemu_mode = WITH_PIUIO | WITH_PIUIOBUTTON;
 pthread_t thread_poll;
 void* thread_poll_func(void* a);
 int thread_poll_done = 0;
+static int thread_poll_started = 0; // and not joined yet
 
 static int file_exists(const char* name){
   if(name == NULL) return 0;
@@ -472,7 +473,7 @@ static void init_piuio_emu(void) {
 
     thread_poll_done = 0;
 #ifndef PIUIO_EMU_NO_POLL_THREAD    // tests/test_piuio_input.c steps by hand
-    pthread_create(&thread_poll, NULL, thread_poll_func, NULL);
+    thread_poll_started = pthread_create(&thread_poll, NULL, thread_poll_func, NULL) == 0;
 #endif
 }
 
@@ -1552,7 +1553,12 @@ void API_EXPORTED libusb_exit(libusb_context *ctx) {
      * them, nor end the shared client connection (IMPER-88). */
     if(piuioemu_pid != 0 && getpid() != piuioemu_pid) return;
     thread_poll_done = 1;
-    pthread_join(thread_poll, NULL);
+    // Games call this once per context: join the thread only once. When the
+    // poll thread itself ends the game (TEST hold) there is nothing to join
+    if(thread_poll_started && !pthread_equal(pthread_self(), thread_poll)) {
+        thread_poll_started = 0;
+        pthread_join(thread_poll, NULL);
+    }
     
     finish_piuio();
     KeyHandler_Twitch_Exit();

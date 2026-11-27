@@ -2053,7 +2053,12 @@ static void handle_timeout(struct usbi_transfer *itransfer)
 	int r;
 
 	itransfer->timeout_flags |= USBI_TRANSFER_TIMEOUT_HANDLED;
-	r = libusb_cancel_transfer(transfer);
+	/* true_: the piuio shim's libusb_cancel_transfer takes a real pad board
+	 * (same IDs as the emulated one) for an emulated device and cancels
+	 * nothing: no timeout on a pad board ever fired, and a read it did not
+	 * answer blocked until it was unplugged. libusb's own calls must never
+	 * go through the shim */
+	r = true_libusb_cancel_transfer(transfer);
 	if (r == LIBUSB_SUCCESS)
 		itransfer->timeout_flags |= USBI_TRANSFER_TIMED_OUT;
 	else

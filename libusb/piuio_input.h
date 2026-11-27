@@ -153,7 +153,8 @@ static inline int piuio_pad_emu(int emu_requested, int real_board, int real_lxio
 // A failed read of a real IO must not look like a press: a zeroed buffer is
 // "everything pressed", coin and SERVICE included (IMPER-116). The last state
 // is kept while a read fails, and everything is let go once the device is
-// gone for good (unplugged): nobody can be pressing it then.
+// gone (unplugged), or has not answered for a while (piuio.c, hot-plug):
+// nobody can be known to be pressing it then.
 enum piuio_read_result {
     PIUIO_READ_OK = 0,      // use the new data
     PIUIO_READ_KEEP,        // transient failure: keep the last state

@@ -4,7 +4,7 @@
 // guard rule, the coins-per-credit limit of the newer games and the restore.
 // credits.c is included, so its statics are the ones checked.
 //
-//   gcc -m32 -std=gnu99 -Wall -I . -I libusb -fPIE -pie -o /tmp/test_credits_table tests/test_credits_table.c -lpthread -lrt
+//   gcc -m32 -std=gnu99 -Wall -I . -I libusb -fPIE -pie -o /tmp/test_credits_table tests/test_credits_table.c -lpthread -lrt -ldl
 //   /tmp/test_credits_table [pki dir with <game>/piu]
 // (default dir: build.multiloader.release/pki next to the repository root; the table checks
 // against executables are skipped for a game whose file is absent)
@@ -62,6 +62,17 @@ static void setcon(const struct credit_construct* c)
 }
 static int32_t rd32(uintptr_t a) { int32_t v; memcpy(&v, (void*)a, 4); return v; }
 static void wr32(uintptr_t a, int32_t v) { memcpy((void*)a, &v, 4); }
+// Puts a pool in the file as an edit of the current one: pool_save keeps the two
+// copies by generation, so a pool built from nothing (gen 0) would lose to .prev.
+static void seed_pool(int credits, int coins)
+{
+    struct credits_pool p;
+    pool_load(&p);
+    p.credits = credits;
+    p.coins = coins;
+    p.enabled = 1;
+    pool_save(&p);
+}
 
 int main(int argc, char** argv)
 {
@@ -176,13 +187,13 @@ int main(int argc, char** argv)
         check("max_cpc: 10 coins per credit is not (another coin mode)", game_read(&g) != 0);
         // the whole poll: nothing written for cpc 10
         wr32(b + 0x30, 0); wr32(b + 0x34, 0);
-        pool_save(&(struct credits_pool){ .credits = 6, .coins = 0, .enabled = 1 });
+        seed_pool(6, 0);
         t += 10000; valid_since = t - 5000;
         game_poll(t);
         check("max_cpc: the restore leaves the game alone", rd32(b + 0x30) == 0 && !restored);
         m[0x20] = 3;
         // restore in the poll, DIRECT, and the hit-me protection
-        pool_save(&(struct credits_pool){ .credits = 6, .coins = 2, .enabled = 1 });
+        seed_pool(6, 2);
         wr32(b + 0x30, 1); wr32(b + 0x34, 1);   // what the game counted while it started: a ghost
         t += 10000; valid_since = t - 5000;
         game_poll(t);
@@ -197,7 +208,7 @@ int main(int argc, char** argv)
         credits_flush();   // owner_pid is 0 here: nothing happens, no crash
         // a real coin seen on the switch keeps the game's own count
         setcon(&dir);
-        pool_save(&(struct credits_pool){ .credits = 2, .coins = 0, .enabled = 1 });
+        seed_pool(2, 0);
         wr32(b + 0x30, 1); wr32(b + 0x34, 0);
         real_coins = 1;
         t += 10000; valid_since = t - 5000;
@@ -206,7 +217,7 @@ int main(int argc, char** argv)
         // over the cap: Pump Jump style cap 20
         dir.max_credits = 5;
         setcon(&dir);
-        pool_save(&(struct credits_pool){ .credits = 9, .coins = 0, .enabled = 1 });
+        seed_pool(9, 0);
         wr32(b + 0x30, 0); wr32(b + 0x34, 0);
         t += 10000; valid_since = t - 5000;
         game_poll(t);
@@ -247,6 +258,8 @@ int main(int argc, char** argv)
         munmap(m, 0x4000);
     }
     unlink(tmp);
+    snprintf(path, sizeof(path), "%s.prev", tmp);
+    unlink(path);
     printf(fails ? "%d FAILED\n" : "all passed\n", fails);
     return fails != 0;
 }
