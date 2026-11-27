@@ -854,9 +854,14 @@ struct autoplay_construct all_contstructs[] = {
         .p1_a = (void*)0,
         .p2_a = (void*)0,
     },
-    // PIU Infinity (only for identification)
+    // PIU Infinity 1.10.0 (StepMania 5 engine): version 6, the per-player controller
+    // PlayerState::m_PlayerController (+0x8c4, 1 = autoplay) of
+    // GAMESTATE (*0x086f59b0)->m_pPlayerState[pn] (+0x36c + 4*pn), heap objects: chased
+    // on every poll (update_autoplay). Found with REA/objdump 2026-11-27 (DebugLineAutoplay
+    // at 0x80bda13 writes the same field); Player reads it every frame, a stage load copies
+    // GamePreferences::m_AutoPlay (0x085f2d5c) over it, hence the rewrite on every poll.
     {
-        .version = 0,
+        .version = 6,
         .cmp_name = "It Up Infinity 1.10.0",
         .cmp_ver = "1.10.0",
         .name = (void*)(0x859abff + 5),
@@ -940,6 +945,10 @@ int auto_val = 0;
 
 int auto_patched = 0;
 static int auto_was_on = 0;  // update_autoplay: the shim forced the flag last poll
+// Infinity 1.10.0 (version 6): see the table entry
+#define INF_GAMESTATE 0x086f59b0u
+#define INF_PLAYERSTATE 0x36cu
+#define INF_CONTROLLER 0x8c4u
 char** auto_orig_jumps;
 
 static void try_get_version_3(struct autoplay_construct* con) {
@@ -1067,6 +1076,11 @@ void API_EXPORTED report_autoplay(struct autoplay_construct* con) {
         try_get_version_3(con);
         skip_mem = 1;
     }
+    else if(con->version == 6) {
+        // Infinity: the GAMESTATE pointer (.bss, always mapped) stands in for the flags
+        player1_auto = player2_auto = (unsigned int*)INF_GAMESTATE;
+        skip_mem = 1;
+    }
     else {
         player1_auto = con->p1_a;
         player2_auto = con->p2_a;
@@ -1117,11 +1131,32 @@ void API_EXPORTED report_autoplay(struct autoplay_construct* con) {
     auto_available = 1;
 }
 
+
+static void infinity_set(int side, int on) {
+    uintptr_t gs = *(volatile uint32_t*)(uintptr_t)INF_GAMESTATE;
+    if(gs == 0) return;                                   // the game state is not made yet
+    uintptr_t ps = *(volatile uint32_t*)(gs + INF_PLAYERSTATE + 4u * (unsigned)side);
+    if(ps == 0) return;
+    volatile int* pc = (volatile int*)(ps + INF_CONTROLLER);
+    if(on) { if(*pc != 1) *pc = 1; }
+    else if(*pc == 1) *pc = 0;                            // only our own autoplay goes back to human
+}
+
 void update_autoplay (void) {
   
     if(!auto_available) return;
 
     struct autoplay_construct* con = auto_chosen;
+
+    if(auto_version == 6) {
+        // rewritten on every poll while on: each stage load copies the preference over it
+        if(auto_1 != -1 || auto_2 != -1 || auto_was_on) {
+            infinity_set(0, auto_1 != -1);
+            infinity_set(1, auto_2 != -1);
+        }
+        auto_was_on = (auto_1 != -1 || auto_2 != -1);
+        return;
+    }
 
     if(auto_version == 3) {
         // The object may not be created when libusb was called
