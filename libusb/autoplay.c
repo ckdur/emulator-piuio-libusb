@@ -1132,6 +1132,59 @@ void API_EXPORTED report_autoplay(struct autoplay_construct* con) {
 }
 
 
+/* The engine (StepMania 5) counts nothing for PC_AUTOPLAY: Player returns early
+ * from its judgement / life, tap-row score and hold score code outside the demo,
+ * so a stage under autoplay ended F with every count zero (IMPER-167).  While
+ * the shim's autoplay is on, each of those three "je <return>" branches gets a
+ * displacement of 0 (= falls through); off puts it back, so the game's own
+ * autoplay behaves as it did.  Only the displacement is written, in one store:
+ * the instruction stays valid for the thread that is judging.  The other
+ * autoplay checks stay: they mark the stage disqualified (no machine records). */
+static const struct inf_branch {
+    uintptr_t at;               /* the "cmpl $0x1,0x8c4(%eax)" before the je */
+    unsigned char code[13];     /* cmpl (7 bytes) + je */
+    unsigned char len;          /* of code */
+    unsigned char disp;         /* offset of the je's displacement in code */
+    unsigned char disp_len;     /* 1 or 4 */
+} inf_branches[] = {
+    { 0x083693acu, { 0x83, 0xb8, 0xc4, 0x08, 0, 0, 0x01, 0x0f, 0x84, 0x5f, 0x01, 0, 0 }, 13, 9, 4 },
+    { 0x0836eaa1u, { 0x83, 0xb8, 0xc4, 0x08, 0, 0, 0x01, 0x74, 0xcb }, 9, 8, 1 },
+    { 0x0836fb6eu, { 0x83, 0xb8, 0xc4, 0x08, 0, 0, 0x01, 0x74, 0xd3 }, 9, 8, 1 },
+};
+#define INF_NBRANCH ((int)(sizeof(inf_branches) / sizeof(inf_branches[0])))
+static int inf_scoring = 0;      /* the branches are patched */
+static int inf_scoring_bad = 0;  /* another build, or no write access: never try again */
+
+static void infinity_scoring(int on) {
+    if(on == inf_scoring || inf_scoring_bad) return;
+    for(int i = 0; i < INF_NBRANCH; i++) {
+        const struct inf_branch* b = &inf_branches[i];
+        unsigned char want[sizeof(b->code)];
+        memcpy(want, b->code, b->len);
+        if(inf_scoring) memset(want + b->disp, 0, b->disp_len);
+        uintptr_t page = b->at & ~(uintptr_t)0xfff;
+        /* all three branches lie inside one page each */
+        if(memcheck((void*)b->at) != 0 || memcmp((void*)b->at, want, b->len) != 0 ||
+           mprotect((void*)(b->at & ~(uintptr_t)0xfff), 0x1000, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
+            PRINTF("Infinity: autoplay will not be scored (code at %p differs)\n", (void*)b->at);
+            inf_scoring_bad = 1;
+            return;       /* nothing was written: all three are checked before the first store */
+        }
+    }
+    for(int i = 0; i < INF_NBRANCH; i++) {
+        const struct inf_branch* b = &inf_branches[i];
+        void* d = (void*)(b->at + b->disp);
+        if(b->disp_len == 4) {
+            uint32_t v = 0;
+            if(!on) memcpy(&v, b->code + b->disp, 4);
+            *(volatile uint32_t*)d = v;
+        }
+        else
+            *(volatile unsigned char*)d = on ? 0 : b->code[b->disp];
+    }
+    inf_scoring = on;
+}
+
 static void infinity_set(int side, int on) {
     uintptr_t gs = *(volatile uint32_t*)(uintptr_t)INF_GAMESTATE;
     if(gs == 0) return;                                   // the game state is not made yet
@@ -1151,6 +1204,7 @@ void update_autoplay (void) {
     if(auto_version == 6) {
         // rewritten on every poll while on: each stage load copies the preference over it
         if(auto_1 != -1 || auto_2 != -1 || auto_was_on) {
+            infinity_scoring(auto_1 != -1 || auto_2 != -1);
             infinity_set(0, auto_1 != -1);
             infinity_set(1, auto_2 != -1);
         }
