@@ -11,9 +11,18 @@
 // the menu's Settings entries. Keyboard TEST goes through the same bits
 // (keyboards.c), so it follows the same rule.
 //
+// How it ends is piuio_testhold_quick(): exit() from the shim's poll thread
+// runs the game's exit handlers and C++ static destructors while its other
+// threads are still running.  PMod crashed that way on every TEST exit
+// (IMPER-162: its main thread called into destroyed objects, and so did its
+// signal handler, until the signal stack overflowed).  Its run script sets
+// _PIUIOEMU_TESTHOLD_QUICK=1: the shim saves its own state and ends the
+// process with _exit(), which runs nothing of the game's.
+//
 // Kept apart from piuio_emu.c, with no other dependency, so that
 // tests/test_testhold.c can check it on the host.
 
+#include <stdlib.h>
 #include <time.h>
 
 #define PIUIO_TESTHOLD_SECONDS 5
@@ -29,6 +38,11 @@ struct piuio_testhold {
     int held;        // TEST has been down since 'since'
     time_t since;
 };
+
+// value: _PIUIOEMU_TESTHOLD_QUICK, NULL when unset
+static inline int piuio_testhold_quick(const char *value) {
+    return value != NULL && atoi(value) != 0;
+}
 
 // One poll step. test_down: TEST is pressed now. is_menu: the process has
 // called libusb_piuio_report_menu().

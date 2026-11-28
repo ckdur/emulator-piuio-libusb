@@ -550,6 +550,15 @@ void* thread_poll_func(void* a) {
             case PIUIO_TESTHOLD_EXIT:
                 thread_poll_done = 1;
                 PRINTF("TEST held 5 seconds. Exiting ...\n");
+                if(piuio_testhold_quick(getenv("_PIUIOEMU_TESTHOLD_QUICK"))) {
+                    // piuio_testhold.h (IMPER-162). credits_flush() is the
+                    // shim's only exit handler. Not fflush(NULL): it waits
+                    // for streams other threads hold.
+                    credits_flush();
+                    fflush(stdout);
+                    fflush(stderr);
+                    _exit(0);
+                }
                 exit(0);
                 abort();
                 *((int*)NULL) = 0; // crash it

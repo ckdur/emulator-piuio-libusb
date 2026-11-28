@@ -67,6 +67,11 @@ int main(void) {
         check("short press: starts and clears, nothing else", r1 == PIUIO_TESTHOLD_STARTED && r2 == PIUIO_TESTHOLD_NONE && !h.held);
     }
 
+    // IMPER-162: only a run script that asks for it ends without exit()
+    check("quick exit: off when unset, empty or 0",
+          !piuio_testhold_quick(NULL) && !piuio_testhold_quick("") && !piuio_testhold_quick("0"));
+    check("quick exit: on with 1", piuio_testhold_quick("1"));
+
     printf("%s\n", fails ? "FAILED" : "all passed");
     return fails != 0;
 }
