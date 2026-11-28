@@ -132,6 +132,16 @@ int siz = 0;
 
 char isListen = 0;
 
+/* Every reply to the remote-control client. The client may be gone at any
+ * moment (the profile web's pages, a test tool that is killed, a reset
+ * connection), and a plain send() to it raises SIGPIPE, whose default action
+ * ends the game (IMPER-169: Phoenix died so). MSG_NOSIGNAL holds for this call
+ * only; the game's own signal handling is not touched. The next recv() finds
+ * the client gone and releases what it held. */
+static void twitch_send(const char* msg) {
+  if(newsockfd >= 0) send(newsockfd, msg, strlen(msg), MSG_NOSIGNAL);
+}
+
 void KeyHandler_Twitch_Exit(void) {
   /* In a forked child (its exit handlers can end up here) the sockets are
    * copies: a Q and a shutdown() would end the parent's client connection
@@ -144,7 +154,7 @@ void KeyHandler_Twitch_Exit(void) {
     return;
   }
   if(isListen || newsockfd >= 0) { 
-    send(newsockfd, "Q\n", strlen("Q\n"), 0); // Notify of exit
+    twitch_send("Q\n"); // Notify of exit
     shutdown(newsockfd, SHUT_RDWR);
     close(newsockfd); 
     newsockfd = -1; 
@@ -217,9 +227,10 @@ static void handle_socket(void){
     if(buffer[0] == 'Q') {
       PRINTF("Quiting the client\n");
       TwitchReleaseAll();
-      send(newsockfd, "Q\n", strlen("Q\n"), 0); // Notify of exit
+      twitch_send("Q\n"); // Notify of exit
       isListen = 0;
       close(newsockfd);
+      newsockfd = -1;   // the exit path must not write to a number the game reuses
       return; // Try in the next iteration to do the accept
     }
     
@@ -646,14 +657,14 @@ void HandleRequest(int req) {
       p2[0], p2[1], p2[2], p2[3], p2[4], 
       l2c, l1, neon, l1c, l2);
 
-    send(newsockfd, msg, strlen(msg), 0);
+    twitch_send(msg);
     //PRINTF("Sent the light status\n");
   }
   if(req == STATE_REQUEST_LIGHTS_RAW) {
     snprintf(msg, sizeof(msg), "%.2x%.2x%.2x%.2x\n", 
       bytes_l[3], bytes_l[2], bytes_l[1], bytes_l[0]);
 
-    send(newsockfd, msg, strlen(msg), 0);
+    twitch_send(msg);
     //PRINTF("Sent the light raw status\n");
   }
   if(req == STATE_REQUEST_STEP) {
@@ -688,7 +699,7 @@ void HandleRequest(int req) {
       p2[0], p2[1], p2[2], p2[3], p2[4], 
       test, coin1, service, clear, coin2);
 
-    send(newsockfd, msg, strlen(msg), 0);
+    twitch_send(msg);
     //PRINTF("Sent the step status\n");
   }
   if(req == STATE_REQUEST_STEP_RAW) {
@@ -697,47 +708,47 @@ void HandleRequest(int req) {
       bytes_f[7], bytes_f[6], bytes_f[5], bytes_f[4],
       bytes_f[11], bytes_f[10], bytes_f[9], bytes_f[8]);
 
-    send(newsockfd, msg, strlen(msg), 0);
+    twitch_send(msg);
     //PRINTF("Sent the step raw status\n");
   }
   if(req == STATE_REQUEST_LIGHTS_RECURRENT) {
     poll_change_lights = 1;
-    send(newsockfd, "ok\n", strlen("ok\n"), 0);
+    twitch_send("ok\n");
   }
   if(req == STATE_REQUEST_LIGHTS_RECURRENT_OFF) {
     poll_change_lights = 0;
-    send(newsockfd, "off\n", strlen("off\n"), 0);
+    twitch_send("off\n");
   }
   if(req == STATE_REQUEST_STEP_RECURRENT) {
     poll_change_steps = 1;
-    send(newsockfd, "ok\n", strlen("ok\n"), 0);
+    twitch_send("ok\n");
   }
   if(req == STATE_REQUEST_STEP_RECURRENT_OFF) {
     poll_change_steps = 0;
-    send(newsockfd, "off\n", strlen("off\n"), 0);
+    twitch_send("off\n");
   }
   if(req == STATE_AUTOPLAY_ON) {
     auto_1 = 0;
     auto_2 = 0;
-    send(newsockfd, "ok\n", strlen("ok\n"), 0);
+    twitch_send("ok\n");
   }
   if(req == STATE_AUTOPLAY_OFF) {
     auto_1 = -1;
     auto_2 = -1;
-    send(newsockfd, "off\n", strlen("off\n"), 0);
+    twitch_send("off\n");
   }
   /* `a <available> <on>`: does this game have an autoplay the shim can
    * switch (autoplay.c found its flag), and is it on now. */
   if(req == STATE_GET_AUTOPLAY) {
     snprintf(msg, sizeof(msg), "a %d %d\n", auto_available ? 1 : 0,
       (auto_1 != -1 || auto_2 != -1) ? 1 : 0);
-    send(newsockfd, msg, strlen(msg), 0);
+    twitch_send(msg);
   }
   if(req == STATE_GET_GAME_NAME) {
     snprintf(msg, sizeof(msg), "%s,%s\n", 
       game_name, game_ver);
 
-    send(newsockfd, msg, strlen(msg), 0);
+    twitch_send(msg);
     //PRINTF("Sent the step raw status\n");
   }
 
@@ -749,7 +760,7 @@ void HandleRequest(int req) {
     snprintf(msg, sizeof(msg), "l %.2x%.2x%.2x%.2x\n", 
       bytes_l_next[3], bytes_l_next[2], bytes_l_next[1], bytes_l_next[0]);
 
-    send(newsockfd, msg, strlen(msg), 0);
+    twitch_send(msg);
   }
 
   if(poll_change_steps && memcmp(bytes_f_prev, bytes_f, sizeof(bytes_f)) != 0) {
@@ -758,7 +769,7 @@ void HandleRequest(int req) {
       bytes_f[7], bytes_f[6], bytes_f[5], bytes_f[4],
       bytes_f[11], bytes_f[10], bytes_f[9], bytes_f[8]);
 
-    send(newsockfd, msg, strlen(msg), 0);
+    twitch_send(msg);
   }
   memcpy(bytes_f_prev, bytes_f, sizeof(bytes_f));
   memcpy(bytes_l_prev, bytes_l_next, sizeof(bytes_l));

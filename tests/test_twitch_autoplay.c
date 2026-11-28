@@ -11,6 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -130,6 +131,28 @@ int main(void) {
     close(s);
     polls(10);
     check("connection dropped: front buttons released", bytes_tf[0] == 0xFF && bytes_tf[1] == 0xFF && bytes_tb[0] == 0xFF);
+
+    // A client that is gone before the answers (reset: a killed tool, a page
+    // closed with replies unread): the shim's send() to it must not raise
+    // SIGPIPE, which would end the game (IMPER-169: Phoenix died this way). The
+    // game's own SIGPIPE handling stays as it was (here: the default, fatal).
+    for(int round = 0; round < 3; round++) {
+        s = client();
+        struct linger lg = {1, 0};
+        setsockopt(s, SOL_SOCKET, SO_LINGER, &lg, sizeof(lg));
+        const char* many = "req 9\nreq 12\nreq 12\nreq 12\n";
+        send(s, many, strlen(many), 0);
+        close(s);                    // RST, with the requests still to be answered
+        polls(20);
+    }
+    check("reset before the replies: the process lives, autoplay off", auto_1 == -1 && auto_2 == -1);
+    struct sigaction sp;
+    sigaction(SIGPIPE, NULL, &sp);
+    check("SIGPIPE left as the program had it", sp.sa_handler == SIG_DFL);
+    s = client();
+    check("the next client is served", strcmp(ask(s, "req 12\n"), "a 1 0\n") == 0);
+    close(s);
+    polls(5);
 
     auto_available = 0;             // a game with no known flag
     s = client();
